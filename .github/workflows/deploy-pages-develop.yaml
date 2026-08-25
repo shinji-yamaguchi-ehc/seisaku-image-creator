@@ -1,0 +1,70 @@
+name: Deploy Pages (develop)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# main / develop の両ワークフローで共有。同時 push 時は直列実行して競合を防ぐ
+concurrency:
+  group: pages-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build (develop)
+        working-directory: app
+        run: |
+          npm ci
+          npx tsc -b
+          npx vite build --base=/seisaku-image-creator/dev/
+
+      # dev/ のみ差し替え（ルートには一切触れない → main の公開には影響しない）
+      - name: Publish to gh-pages (dev/)
+        env:
+          GH_PAGES_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO_URL="https://x-access-token:${GH_PAGES_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          rm -rf publish
+          if git -C app ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            git clone --branch gh-pages "$REPO_URL" publish
+          else
+            echo "::notice::gh-pages ブランチが存在しないため新規作成します"
+            mkdir publish
+            git -C publish init -b gh-pages
+            git -C publish remote add origin "$REPO_URL"
+          fi
+
+          rm -rf publish/dev
+          mkdir -p publish/dev
+          cp -a app/dist/. publish/dev/
+          touch publish/.nojekyll
+
+          git -C publish config user.name "github-actions[bot]"
+          git -C publish config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C publish add -A
+          if git -C publish diff --cached --quiet; then
+            echo "No changes to publish."
+          else
+            SHORT_SHA=$(git -C app rev-parse --short HEAD)
+            git -C publish commit -m "deploy: develop (${SHORT_SHA})"
+            git -C publish push origin gh-pages
+          fi

@@ -10,6 +10,11 @@
 
 ## 完了
 
+- [x] develop push を `<repo>/dev` に独立公開する GitHub Pages デプロイへ移行（gh-pages ブランチ方式）
+  - `.github/workflows/deploy-pages.yaml`（Actions 版デプロイ）を廃止し、`deploy-pages-main.yaml` / `deploy-pages-develop.yaml` に分割
+  - 各ワークフローは gh-pages ブランチ上の自分の担当ディレクトリのみを更新（develop push が main の公開へ影響しない。逆も同様）
+  - 同時 push 時は concurrency グループ `pages-publish` で直列実行して競合を防止
+  - CI で `vite build --base=/seisaku-image-creator/`（develop は `/dev/` 付き）を指定してアセットパスを解決
 - [x] GitHub Actions で main push 時に GitHub Pages（リポジトリ名直下）へ dist を公開するワークフロー追加
   - `.github/workflows/deploy-pages.yaml` を作成（サンプル準拠）
   - SPA ルーティングを Pages 配信でも動かすため `BrowserRouter` → `HashRouter` に変更
