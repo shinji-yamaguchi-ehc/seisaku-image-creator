@@ -87,10 +87,22 @@ npm run lint     # oxlint
 ## E2Eテスト（Playwright）
 
 ```bash
-npm run test:e2e   # レイアウトページ（70項目）+ グラデーションページ（25項目）を連続実行
+npm run test:e2e   # レイアウトページ（73項目）+ グラデーションページ（32項目）を連続実行
 ```
 
 - レイアウトページ: アップロード（下部枠・スロット直接クリック／ドロップ）、ホイール/キーボード/ドラッグによる調整、行境界線・キャンバス下端ハンドル・行間余白によるレイアウト変更、数値入力パネル、PC/SP独立性、エクスポート出力（PNGサイズ・ピクセル検証）、余白警告、スロットの変更／削除など 70 項目
 - グラデーションページ: ナビ遷移、スロット直接アップロード／変更ボタンでの差し替え、移動・ズーム、グラデ各種設定の描画検証（ピクセルサンプリング）、PC/SP独立性、サイズハンドル、出力 PNG の検証など 25 項目
 - 初回のみ `npx playwright install chromium` が必要です。
 - Viteのdevサーバーを自動で起動し、テスト後に停止します。
+
+## GitHub Pages デプロイ
+
+main ブランチへの push 時に GitHub Actions で自動ビルド・デプロイされます（`.github/workflows/deploy-pages.yaml`）。
+
+- ルーティングは `HashRouter` を使用（GitHub Pages には SPA フォールバックがないため）
+- ページ URL: `https://<user>.github.io/<repo>/`
+- ブラウザ内ナビゲーション: `https://<user>.github.io/<repo>/#/` または `https://<user>.github.io/<repo>/#/gradient`
+
+---
+
+Copyright © エンパワーヘルスケア株式会社 All Rights Reserved.

@@ -92,7 +92,7 @@ export default function LayoutTool() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-6">
         <header className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight">制作画像クリエイター</h1>

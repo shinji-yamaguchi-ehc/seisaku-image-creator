@@ -118,8 +118,8 @@ async function main() {
       await page.locator('[data-testid="shortcuts-close"]').click();
     }
     await page.locator('[data-testid="nav-gradient"]').click();
-    await page.waitForURL("**/gradient");
-    check("/gradient へ遷移する", page.url().endsWith("/gradient"));
+    await page.waitForURL((u) => u.hash === "#/gradient");
+    check("/gradient へ遷移する", page.url().includes("#/gradient"));
     check(
       "キャンバス設定の既定値は 960x345",
       JSON.stringify(await cfgVals(page)) === JSON.stringify(["960", "345"]),
@@ -360,7 +360,7 @@ async function main() {
     // ---- H. レイアウトページへの復帰 ----
     console.log("\n[H] レイアウトページへの復帰");
     await page.locator('[data-testid="nav-layout"]').click();
-    await page.waitForURL((u) => u.pathname === "/");
+    await page.waitForURL((u) => u.hash === "" || u.hash === "#/");
     await page.locator('[data-testid="layout-preview"]').waitFor({ state: "visible" });
     check("ナビでレイアウトページに戻る", await page.locator('[data-testid="layout-preview"]').isVisible());
   } finally {

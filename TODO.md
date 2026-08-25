@@ -10,6 +10,20 @@
 
 ## 完了
 
+- [x] GitHub Actions で main push 時に GitHub Pages（リポジトリ名直下）へ dist を公開するワークフロー追加
+  - `.github/workflows/deploy-pages.yaml` を作成（サンプル準拠）
+  - SPA ルーティングを Pages 配信でも動かすため `BrowserRouter` → `HashRouter` に変更
+  - `vite.config.ts` に `base: "./"` を追加（リポジトリ名非依存のアセットパス）
+
+## 予定 / Backlog
+
+- tailwind.config.js が TypeScript 構文のため oxlint がパースエラーになる（既存問題・設定ファイルの拡張子見直しなど要対応）
+
+## 完了
+
+- [x] コピーライト表示を追加: `Copyright © エンパワーヘルスケア株式会社 All Rights Reserved.`
+  - App.tsx のフッターに全ページ共通で表示。各ページの `min-h-screen` を削除して flex レイアウトに統合
+  - レイアウトページ 73項目 + グラデーションページ 32項目 = 105項目すべて PASS
 - [x] グラデーションページの既定キャンバス高さを 345px に変更（PC/SP 共通）
   - `GradientTool` の既定 config を更新し、e2e の既定値・フィット位置・ズームアンカー連鎖・出力サイズ（1024x385）の期待値を再計算して修正（32項目すべて PASS）
 - [x] グラデーションの既定スタイルを変更: 色 #ffffff・開始の不透明度 100%・終了 0%（右端から中央へ白→透明のフェード）
