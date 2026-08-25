@@ -42,64 +42,6 @@ export const DEFAULT_GRADIENT_STYLE: GradientStyle = {
   endAlpha: 0,
 };
 
-export interface GradientPreset {
-  id: string;
-  label: string;
-  style: GradientStyle;
-}
-
-/** プリセットチップ */
-export const GRADIENT_PRESETS: GradientPreset[] = [
-  {
-    id: "fade-right-white",
-    label: "右白フェード",
-    style: {
-      side: "right",
-      startPos: 0,
-      endPos: 60,
-      color: "#ffffff",
-      startAlpha: 85,
-      endAlpha: 0,
-    },
-  },
-  {
-    id: "fade-left-black",
-    label: "左黒フェード",
-    style: {
-      side: "left",
-      startPos: 0,
-      endPos: 60,
-      color: "#000000",
-      startAlpha: 75,
-      endAlpha: 0,
-    },
-  },
-  {
-    id: "fade-right-navy",
-    label: "右ネイビー",
-    style: {
-      side: "right",
-      startPos: 0,
-      endPos: 75,
-      color: "#1e3a8a",
-      startAlpha: 80,
-      endAlpha: 0,
-    },
-  },
-  {
-    id: "fade-both-black-wide",
-    label: "左右黒ワイド",
-    style: {
-      side: "both",
-      startPos: 0,
-      endPos: 70,
-      color: "#000000",
-      startAlpha: 85,
-      endAlpha: 0,
-    },
-  },
-];
-
 const toInt = (v: unknown, lo: number, hi: number, fallback: number): number => {
   const n = Math.round(typeof v === "number" ? v : Number(v));
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;

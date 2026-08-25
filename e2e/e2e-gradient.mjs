@@ -218,8 +218,18 @@ async function main() {
       `center=${JSON.stringify(dCenter)} left=${JSON.stringify(dLeft)}`
     );
 
-    // プリセット: 左黒フェード
-    await page.locator('[data-testid="gradient-preset-fade-left-black"]').click();
+    // 左フェードに切替して左黒フェードを再現（left, #000, 開始75%）
+    await page.locator('[data-testid="gradient-side-left"]').click();
+    await page.locator('[data-testid="gradient-color-hex"]').fill("#000000");
+    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
+    const alphaStartThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
+    await alphaStartThumb.focus();
+    await page.keyboard.press("End");
+    await alphaStartThumb.press("ArrowLeft");
+    await alphaStartThumb.press("ArrowLeft");
+    await alphaStartThumb.press("ArrowLeft");
+    await alphaStartThumb.press("ArrowLeft");
+    await alphaStartThumb.press("ArrowLeft");
     const lMid = await waitPx(page, 5, 270, (c) => c[0] < 130);
     const rMid = await pxG(page, 955, 270);
     const lCenter = await pxG(page, 480, 270);
@@ -259,16 +269,6 @@ async function main() {
       `x768=${JSON.stringify(rWhite)} left=${JSON.stringify(rLeftEdge)}`
     );
 
-    // プリセット: 右白フェード（0%→60%）
-    await page.locator('[data-testid="gradient-preset-fade-right-white"]').click();
-    const pwRight = await waitPx(page, 950, 270, (c) => c[1] > 150);
-    const pwCenter = await pxG(page, 400, 270);
-    check(
-      "右白フェードプリセット: 右端は白っぽく中央より左は素の赤",
-      pwRight[1] > 150 && isRedish(pwCenter),
-      `right=${JSON.stringify(pwRight)} center=${JSON.stringify(pwCenter)}`
-    );
-
     // 向き「左右」→ 両端から内側へフェード
     await page.locator('[data-testid="gradient-side-both"]').click();
     const bLeft = await waitPx(page, 170, 270, (c) => c[1] > 150 && c[2] > 150);
@@ -290,14 +290,28 @@ async function main() {
       spRight[1] > 150 && spRight[2] > 150 && isRedish(spCenter),
       `right=${JSON.stringify(spRight)} center=${JSON.stringify(spCenter)}`
     );
-    await page.locator('[data-testid="gradient-preset-fade-left-black"]').click();
+    // SP側で左黒フェードに変更
+    await page.locator('[data-testid="gradient-side-left"]').click();
+    await page.locator('[data-testid="gradient-color-hex"]').fill("#000000");
+    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
+    const spAlphaThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
+    await spAlphaThumb.focus();
+    await page.keyboard.press("End");
+    await spAlphaThumb.press("ArrowLeft");
+    await spAlphaThumb.press("ArrowLeft");
+    await spAlphaThumb.press("ArrowLeft");
+    await spAlphaThumb.press("ArrowLeft");
+    await spAlphaThumb.press("ArrowLeft");
     const spLeftDark = await waitPx(page, 8, 270, (c) => c[0] < 130);
     check("SP側で左黒フェード適用", spLeftDark[0] < 130, JSON.stringify(spLeftDark));
 
     await page.getByRole("tab", { name: "PC版" }).click();
-    // PC側は直前の右白フェードを保持している
-    const pcBackRight = await waitPx(page, 950, 270, (c) => c[1] > 150);
-    check("PC側の設定は保持される（右白フェードのまま）", pcBackRight[1] > 150, JSON.stringify(pcBackRight));
+    // PC側は直前の左右フェードを保持している
+    const pcBackLeft = await pxG(page, 170, 270);
+    const pcBackRight = await pxG(page, 790, 270);
+    check("PC側の設定は保持される（左右フェードのまま）", pcBackLeft[1] > 150 && pcBackRight[1] > 150, JSON.stringify(pcBackLeft));
+
+    // ---- F. サイズハンドル ----
 
     // ---- F. サイズハンドル ----
     console.log("\n[F] サイズハンドル");
@@ -321,8 +335,15 @@ async function main() {
 
     // ---- G. エクスポート ----
     console.log("\n[G] エクスポート");
-    // 状態を固定: 右ネイビーへ戻し、フィット
-    await page.locator('[data-testid="gradient-preset-fade-right-navy"]').click();
+    // 状態を固定: 右ネイビーに設定してフィット
+    await page.locator('[data-testid="gradient-side-right"]').click();
+    await page.locator('[data-testid="gradient-color-hex"]').fill("#1e3a8a");
+    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
+    const navAlphaThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
+    await navAlphaThumb.focus();
+    await page.keyboard.press("End");
+    await navAlphaThumb.press("ArrowLeft");
+    await navAlphaThumb.press("ArrowLeft");
     await page.locator('[data-slot="gradient"]').focus();
     await page.keyboard.press("Control+0");
     await page.waitForTimeout(80);

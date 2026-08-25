@@ -21,6 +21,10 @@
 
 ## 完了
 
+- [x] グラデーション機能のプリセットを削除（プリセットチップの UI・型定義・e2e を廃止）
+  - `GradientControls` からプリセットセクションを削除
+  - `gradient.ts` から `GradientPreset` 型・`GRADIENT_PRESETS` 定数を削除
+  - e2e のプリセットクリック箇所をすべて-sided ボタン・色入力・不透明度スライダーへの直接操作に置き換え（31項目すべて PASS）
 - [x] コピーライト表示を追加: `Copyright © エンパワーヘルスケア株式会社 All Rights Reserved.`
   - App.tsx のフッターに全ページ共通で表示。各ページの `min-h-screen` を削除して flex レイアウトに統合
   - レイアウトページ 73項目 + グラデーションページ 32項目 = 105項目すべて PASS

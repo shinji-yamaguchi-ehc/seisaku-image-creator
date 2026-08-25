@@ -3,7 +3,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import {
-  GRADIENT_PRESETS,
   normalizeGradientStyle,
   type GradientStyle,
 } from "@/lib/gradient";
@@ -27,24 +26,6 @@ export function GradientControls({ style, onChange }: GradientControlsProps) {
   return (
     <div className="bg-card border rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-medium text-foreground">グラデーション設定</h3>
-
-      {/* プリセット */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">プリセット</Label>
-        <div className="flex flex-wrap gap-2">
-          {GRADIENT_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              data-testid={`gradient-preset-${p.id}`}
-              onClick={() => update(p.style)}
-              className="rounded-md border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* 向き（左のみ／右のみ／左右） */}
       <div className="space-y-1.5">

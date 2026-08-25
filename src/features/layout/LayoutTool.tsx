@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutCanvas } from "@/components/LayoutCanvas";
-import { ImageUploader } from "@/components/ImageUploader";
 import { Toolbar } from "@/components/Toolbar";
 import { ExportDialog } from "@/components/ExportDialog";
 import type { ImageSlot, Transform, LayoutConfig } from "@/lib/types";
@@ -132,22 +131,6 @@ export default function LayoutTool() {
           onUpload={handleUpload}
           onRemove={handleRemove}
         />
-
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">画像をアップロード</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <ImageUploader index={i} onUpload={handleUpload} />
-                {images[i] && (
-                  <div className="text-[10px] text-muted-foreground text-center truncate">
-                    {images[i]!.file.name}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

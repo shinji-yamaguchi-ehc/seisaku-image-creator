@@ -170,8 +170,14 @@ async function main() {
 
     // ---- B. アップロード ----
     console.log("\n[B] アップロードと初期状態");
-    const inputs = (i) => page.locator(`[data-testid="uploader-input-${i}"]`);
-    for (let i = 0; i < 4; i++) await inputs(i).setInputFiles(files[i]);
+    // スロット直接クリックでアップロード（filechooser 経由）
+    for (let i = 0; i < 4; i++) {
+      const [fc] = await Promise.all([
+        page.waitForEvent("filechooser"),
+        page.locator(`[data-testid="slot-empty-${i}"]`).click(),
+      ]);
+      await fc.setFiles(files[i]);
+    }
     // 画像デコード完了（調整バッジ＝画像ありの証）を待つ
     await page.waitForFunction(() => document.querySelectorAll('[data-testid^="slot-zoom-badge"]').length === 4, undefined, { timeout: 10000 });
     let slots = await readSlots(page);
@@ -528,7 +534,13 @@ async function main() {
 
     // ---- M. 画像差し替えで transform リセット ＋ 極端な画像 ----
     console.log("\n[M] 差し替えリセット＆極端に細長い画像");
-    await inputs(0).setInputFiles(wideImg);
+    // スロット0の「変更」ボタンで差し替え
+    await page.locator('[data-testid="slot-overlay-0"]').hover();
+    const [fcM] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.locator('[data-testid="slot-replace-0"]').click(),
+    ]);
+    await fcM.setFiles(wideImg);
     slots = await waitSlot(page, 0, (s) => s.badge.includes("100%") && s.left === -1520 && s.top === -338);
     check(
       "差し替え時に transform リセット（100%・中央 -1520,-338）",
@@ -568,7 +580,12 @@ async function main() {
 
     // ---- N. 枠より小さい画像 → 余白＋警告 ----
     console.log("\n[N] 小さい画像の余白警告");
-    await inputs(3).setInputFiles(smallImg);
+    await page.locator('[data-testid="slot-overlay-3"]').hover();
+    const [fcN] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.locator('[data-testid="slot-replace-3"]').click(),
+    ]);
+    await fcN.setFiles(smallImg);
     slots = await waitSlot(page, 3, (s) => s.gap === "1");
     check(
       "zoom=1 固定・中央寄せ（10,8）",
