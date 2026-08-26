@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:e2e": "node e2e/e2e-resize.mjs && node e2e/e2e-gradient.mjs"
+    "test:e2e": "node e2e/run-all.mjs",
+    "test:e2e:resize": "node e2e/e2e-resize.mjs",
+    "test:e2e:gradient": "node e2e/e2e-gradient.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
