@@ -7,8 +7,15 @@
 ## 予定 / Backlog
 
 - tailwind.config.js が TypeScript 構文のため oxlint がパースエラーになる（既存問題・設定ファイルの拡張子見直しなど要対応）
+- e2e テスト本体の高速化: 固定 `waitForTimeout` の条件待ちへの統一、ピクセルサンプリングの一括化（evaluate 往復削減）
 
 ## 完了
+
+- [x] e2e テストの実行時間短縮（並列実行ランナー・個別実行スクリプト追加、AGENTS.md に反復時の使い分けルールを明記）
+  - `npm run test:e2e` を2テストファイルの**並列実行**に変更（新設 `e2e/run-all.mjs`。各テストは Vite サーバーをポート0で起動し一時ファイル名も重複しないため競合なし）。フル suite 約7〜8分 → **約2.8分**
+  - `test:e2e:resize` / `test:e2e:gradient` を追加し、反復中は関連1ファイルのみ実行可能に
+  - AGENTS.md に「実装中の反復は `tsc -b` ＋ 関連1ファイルのみ、フル suite はコミット前の1回だけ」のルールを追記
+  - README の E2E セクションに個別実行コマンドと並列実行の説明を追記（グラデ項目数を実態の31に修正）
 
 - [x] develop push を `<repo>/dev` に独立公開する GitHub Pages デプロイへ移行（gh-pages ブランチ方式）
   - `.github/workflows/deploy-pages.yaml`（Actions 版デプロイ）を廃止し、`deploy-pages-main.yaml` / `deploy-pages-develop.yaml` に分割
