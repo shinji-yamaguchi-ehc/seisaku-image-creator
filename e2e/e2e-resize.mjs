@@ -323,7 +323,7 @@ async function main() {
     await page.mouse.up();
     await page.waitForTimeout(80);
     let boundary = await findRowBoundary(page, 480, 340, 430);
-    check("+54px ドラッグ → 境界 y≈378（1行目378px）", approx(boundary, 378, 2), `boundary=${boundary}`);
+    check("+54px ドラッグ → 境界 y≈403（1行目378px）", approx(boundary, 403, 2), `boundary=${boundary}`);
     check(
       "1行目のみ変化（378/216）",
       JSON.stringify(await rowHeights()) === JSON.stringify(["378", "216"]),
@@ -338,8 +338,8 @@ async function main() {
     await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2 + 102, { steps: 8 });
     await page.mouse.up();
     await page.waitForTimeout(80);
-    boundary = await findRowBoundary(page, 480, 380, 520);
-    check("+102px ドラッグ → 境界 y≈480（1行目480px）", approx(boundary, 480, 2), `boundary=${boundary}`);
+    boundary = await findRowBoundary(page, 480, 400, 540);
+    check("+102px ドラッグ → 境界 y≈505（1行目480px）", approx(boundary, 505, 2), `boundary=${boundary}`);
     check(
       "1行目のみ変化し2行目は不変（480/216）",
       JSON.stringify(await rowHeights()) === JSON.stringify(["480", "216"]),
@@ -360,7 +360,7 @@ async function main() {
       JSON.stringify(await rowHeights())
     );
     boundary = await findRowBoundary(page, 480, 380, 520);
-    check("1行目側の境界は動かない（y≈480）", approx(boundary, 480, 2), `boundary=${boundary}`);
+    check("1行目側の境界は動かない（y≈505）", approx(boundary, 505, 2), `boundary=${boundary}`);
 
     // 行高を初期値へ戻す（以降のセクションは既定ジオメトリ前提）
     await numInputsAll.nth(1).fill("324");
@@ -404,7 +404,7 @@ async function main() {
     await page.waitForTimeout(80);
     check(
       "右端ドラッグ+96 → 幅のみ1056（1056/324/216/0）",
-      JSON.stringify(await confVals()) === JSON.stringify(["1056", "324", "216", "0"]),
+      JSON.stringify(await confVals()) === JSON.stringify(["1056", "324", "216", "25"]),
       JSON.stringify(await confVals())
     );
     // 左端ハンドル: 内側へ +48px → 幅 1008（右ドラッグで幅が変わっているため座標を取り直す）
@@ -416,18 +416,18 @@ async function main() {
     await page.waitForTimeout(80);
     check(
       "左端ドラッグ内側+48 → 幅のみ1008（1008/324/216/0）",
-      JSON.stringify(await confVals()) === JSON.stringify(["1008", "324", "216", "0"]),
+      JSON.stringify(await confVals()) === JSON.stringify(["1008", "324", "216", "25"]),
       JSON.stringify(await confVals())
     );
     // 数値入力で元に戻す（Toolbar の数値入力経路も確認）
     await numInputs.nth(0).fill("960");
     await numInputs.nth(1).fill("324");
     await numInputs.nth(2).fill("216");
-    await numInputs.nth(3).fill("0");
+    await numInputs.nth(3).fill("25");
     await page.waitForTimeout(80);
     check(
-      "数値入力で 960/324/216/0 に復帰",
-      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "0"]),
+      "数値入力で 960/324/216/25 に復帰",
+      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "25"]),
       JSON.stringify(await confVals())
     );
 
@@ -451,15 +451,15 @@ async function main() {
     // ---- K. PC/SP 独立性 ----
     console.log("\n[K] PC/SP モード切替");
     check(
-      "PC設定 960/324/216/0",
-      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "0"]),
+      "PC設定 960/324/216/25",
+      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "25"]),
       JSON.stringify(await confVals())
     );
     await page.getByRole("tab", { name: "SP版" }).click();
     await page.waitForTimeout(80);
     check(
-      "SP設定 960/324/216/0",
-      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "0"]),
+      "SP設定 960/324/216/25",
+      JSON.stringify(await confVals()) === JSON.stringify(["960", "324", "216", "25"]),
       JSON.stringify(await confVals())
     );
     slots = await readSlots(page);
@@ -493,8 +493,8 @@ async function main() {
 
     const pcBuf = fs.readFileSync(pcPath);
     const spBuf = fs.readFileSync(spPath);
-    check("PC版 960x540（324+0+216）", JSON.stringify(pngSize(pcBuf)) === '{"width":960,"height":540}', JSON.stringify(pngSize(pcBuf)));
-    check("SP版 960x540（324+0+216）", JSON.stringify(pngSize(spBuf)) === '{"width":960,"height":540}', JSON.stringify(pngSize(spBuf)));
+    check("PC版 960x565（324+25+216）", JSON.stringify(pngSize(pcBuf)) === '{"width":960,"height":565}', JSON.stringify(pngSize(pcBuf)));
+    check("SP版 960x565（324+25+216）", JSON.stringify(pngSize(spBuf)) === '{"width":960,"height":565}', JSON.stringify(pngSize(spBuf)));
 
     const pcSamples = await samplePngPoints(page, pcBuf, [
       ["s0-mid", 480, 160],
@@ -520,7 +520,7 @@ async function main() {
         }
       return found.slice(0, 8);
     });
-    check("PC版 全域に白抜けなし", whitesPc.length === 0, JSON.stringify(whitesPc));
+    check("PC版 行間以外に白抜けなし", whitesPc.length === 0 || whitesPc.every(([x, y]) => y >= 324 && y < 349), JSON.stringify(whitesPc));
 
     const spSamples = await samplePngPoints(page, spBuf, [
       ["s0", 480, 162],

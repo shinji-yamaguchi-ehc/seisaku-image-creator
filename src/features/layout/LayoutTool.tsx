@@ -10,14 +10,14 @@ const defaultConfig: LayoutConfig = {
   canvasWidth: 960,
   row1Height: 324,
   row2Height: 216,
-  rowGap: 0,
+  rowGap: 25,
 };
 
 const spConfig: LayoutConfig = {
   canvasWidth: 960,
   row1Height: 324,
   row2Height: 216,
-  rowGap: 0,
+  rowGap: 25,
 };
 
 const initialTransforms = (): Transform[] => [
