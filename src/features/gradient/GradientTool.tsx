@@ -6,7 +6,7 @@ import { GradientCanvas } from "@/components/GradientCanvas";
 import { GradientControls } from "@/components/GradientControls";
 import { GradientExportDialog } from "@/components/GradientExportDialog";
 import {
-  DEFAULT_GRADIENT_STYLE,
+  defaultStyleFor,
   normalizeGradientConfig,
   type GradientCanvasConfig,
   type GradientStyle,
@@ -26,8 +26,8 @@ export default function GradientTool() {
   const [spConfigState, setSpConfigState] = useState<GradientCanvasConfig>(spConfig);
   const [pcTransform, setPcTransform] = useState<Transform>(initialTransform);
   const [spTransform, setSpTransform] = useState<Transform>(initialTransform);
-  const [pcStyle, setPcStyle] = useState<GradientStyle>({ ...DEFAULT_GRADIENT_STYLE });
-  const [spStyle, setSpStyle] = useState<GradientStyle>({ ...DEFAULT_GRADIENT_STYLE });
+  const [pcStyle, setPcStyle] = useState<GradientStyle>(() => defaultStyleFor("pc"));
+  const [spStyle, setSpStyle] = useState<GradientStyle>(() => defaultStyleFor("sp"));
 
   const activeConfig = mode === "pc" ? pcConfigState : spConfigState;
   const activeTransform = mode === "pc" ? pcTransform : spTransform;
@@ -123,7 +123,7 @@ export default function GradientTool() {
           onUpload={handleUpload}
         />
 
-        <GradientControls style={activeStyle} onChange={setActiveStyle} />
+        <GradientControls style={activeStyle} onChange={setActiveStyle} mode={mode} />
       </div>
     </div>
   );

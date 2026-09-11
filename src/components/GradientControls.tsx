@@ -10,52 +10,32 @@ import {
 interface GradientControlsProps {
   style: GradientStyle;
   onChange: (style: GradientStyle) => void;
+  mode: "pc" | "sp";
 }
 
-const SIDES: { side: "left" | "right" | "both"; label: string; testid: string }[] = [
-  { side: "left", label: "左フェード", testid: "gradient-side-left" },
-  { side: "right", label: "右フェード", testid: "gradient-side-right" },
-  { side: "both", label: "左右フェード", testid: "gradient-side-both" },
-];
+const SIDE_LABEL: Record<"right" | "both", string> = {
+  right: "右フェード（右端から内側へ減衰）",
+  both: "左右フェード（両端から内側へ減衰）",
+};
 
-export function GradientControls({ style, onChange }: GradientControlsProps) {
+export function GradientControls({ style, onChange, mode }: GradientControlsProps) {
   const update = (partial: Partial<GradientStyle>) => {
     onChange(normalizeGradientStyle(style, partial));
   };
+  // 向きはモード固定（PC=右 / SP=左右）。選択 UI は出さない
+  const lockedSide = mode === "pc" ? "right" : "both";
 
   return (
     <div className="bg-card border rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-medium text-foreground">グラデーション設定</h3>
 
-      {/* 向き（左のみ／右のみ／左右） */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">向き</Label>
-        <div className="flex gap-2">
-          {SIDES.map(({ side, label, testid }) => (
-            <button
-              key={side}
-              type="button"
-              data-testid={testid}
-              aria-pressed={style.side === side}
-              onClick={() => update({ side })}
-              className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-                style.side === side
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] text-muted-foreground">
-          {style.side === "both"
-            ? "左右の両端から内側へフェードします。"
-            : style.side === "right"
-              ? "右端側から内側へ減衰します。"
-              : "左端側から内側へ減衰します。"}
-          向きを切り替えても位置・色・不透明度はそのまま引き継がれます。
-        </p>
+      {/* 向き（固定） */}
+      <div
+        data-testid="gradient-direction-fixed"
+        className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+      >
+        {mode === "pc" ? "PC版" : "SP版"}は「{SIDE_LABEL[lockedSide]}」で固定されています。
+        開始位置・終了位置・色・不透明度は編集できます。
       </div>
 
       {/* 開始位置 */}

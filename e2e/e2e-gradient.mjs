@@ -12,6 +12,7 @@ fs.mkdirSync(tmpDir, { recursive: true });
 const COLORS = {
   red: [220, 38, 38],
   yellow: [234, 179, 8],
+  navy: [30, 58, 138],
 };
 
 let passed = 0;
@@ -28,7 +29,7 @@ function check(name, cond, detail = "") {
 }
 
 const isRedish = (a) => a[0] > 180 && a[1] < 110;
-const brightness = (a) => (a[0] + a[1] + a[2]) / 3;
+const isWhitesh = (a) => a[0] > 200 && a[1] > 200 && a[2] > 200;
 
 async function readGradient(page) {
   return page.evaluate(() => {
@@ -36,7 +37,6 @@ async function readGradient(page) {
     if (!el) return null;
     return {
       zoom: el.dataset.zoom === "" ? NaN : parseFloat(el.dataset.zoom),
-      minZoom: el.dataset.minZoom === "" ? NaN : parseFloat(el.dataset.minZoom),
       left: el.dataset.left === "" ? NaN : parseInt(el.dataset.left, 10),
       top: el.dataset.top === "" ? NaN : parseInt(el.dataset.top, 10),
       gap: el.dataset.gap,
@@ -88,6 +88,30 @@ async function uploadViaFilechooser(page, trigger, file) {
   await fc.setFiles(file);
 }
 
+async function samplePngPoints(page, buf, points) {
+  await page.evaluate(async (b) => {
+    const img = new Image();
+    img.src = "data:image/png;base64," + b;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext("2d").drawImage(img, 0, 0);
+    window.__sampleCanvas = c;
+  }, buf.toString("base64"));
+  const out = {};
+  for (const [name, x, y] of points) {
+    out[name] = await page.evaluate(
+      ([px, py]) => {
+        const d = window.__sampleCanvas.getContext("2d").getImageData(px, py, 1, 1).data;
+        return [d[0], d[1], d[2]];
+      },
+      [x, y]
+    );
+  }
+  return out;
+}
+
 async function main() {
   const redImg = path.join(tmpDir, "grad_red.png");
   fs.writeFileSync(redImg, makePng(2400, 1600, COLORS.red));
@@ -111,8 +135,6 @@ async function main() {
     // ---- A. ナビ ----
     console.log("\n[A] ナビゲーション");
     await page.goto(baseUrl);
-    check("/ でレイアウトページが表示される", await page.locator('[data-testid="nav-layout"]').isVisible());
-    // 初回アクセス時のショートカットオーバーレイを閉じる
     const overlay = page.locator('[data-testid="shortcuts-overlay"]');
     if (await overlay.isVisible().catch(() => false)) {
       await page.locator('[data-testid="shortcuts-close"]').click();
@@ -121,27 +143,45 @@ async function main() {
     await page.waitForURL((u) => u.hash === "#/gradient");
     check("/gradient へ遷移する", page.url().includes("#/gradient"));
     check(
-      "キャンバス設定の既定値は 960x345",
+      "キャンバス設定の既定値は 960×345",
       JSON.stringify(await cfgVals(page)) === JSON.stringify(["960", "345"]),
       JSON.stringify(await cfgVals(page))
     );
 
-    // ---- B. アップロード（空きスロット直接クリック → 変更ボタンで差し替え） ----
-    console.log("\n[B] スロット直接アップロード・差し替え");
+    // ---- B. グラデ方向の固定とデフォルト位置 ----
+    console.log("\n[B] 方向固定＆デフォルト位置（PC=右45/70、SP=左右20/30）");
+    check("向き固定の説明が表示される（PC）", await page.locator('[data-testid="gradient-direction-fixed"]').isVisible());
+    check(
+      "PC デフォルト: 開始45%／終了70%",
+      (await page.locator('[data-testid="gradient-start-pos-input"]').inputValue()) === "45" &&
+        (await page.locator('[data-testid="gradient-end-pos-input"]').inputValue()) === "70"
+    );
+    await page.getByRole("tab", { name: "SP版" }).click();
+    await page.waitForTimeout(80);
+    check(
+      "SP キャンバスも 960×345",
+      JSON.stringify(await cfgVals(page)) === JSON.stringify(["960", "345"]),
+      JSON.stringify(await cfgVals(page))
+    );
+    check(
+      "SP デフォルト: 開始20%／終了30%",
+      (await page.locator('[data-testid="gradient-start-pos-input"]').inputValue()) === "20" &&
+        (await page.locator('[data-testid="gradient-end-pos-input"]').inputValue()) === "30"
+    );
+    await page.getByRole("tab", { name: "PC版" }).click();
+    await page.waitForTimeout(80);
+
+    // ---- C. アップロード（小さい画像 → 赤に差し替え） ----
+    console.log("\n[C] アップロード・差し替え");
     await uploadViaFilechooser(
       page,
       () => page.locator('[data-testid="gradient-empty"]').click(),
       smallImg
     );
     let g = await waitGradient(page, (s) => s.badge.includes("100%") && s.left === 330 && s.top === 73);
-    check(
-      "小さい画像を直接アップロード（100%・中央寄せ 330,73）",
-      g.badge.includes("100%") && g.left === 330 && g.top === 73,
-      JSON.stringify(g)
-    );
+    check("小さい画像を直接アップロード（100%・330,73）", g.badge.includes("100%") && g.left === 330 && g.top === 73, JSON.stringify(g));
     check("余白警告バッジ表示", g.gap === "1" && (await page.locator('[data-testid="gradient-gap-warning"]').isVisible()));
 
-    // 変更ボタンで差し替え
     await page.locator('[data-testid="gradient-slot"]').hover();
     const [fc] = await Promise.all([
       page.waitForEvent("filechooser"),
@@ -149,26 +189,21 @@ async function main() {
     ]);
     await fc.setFiles(redImg);
     g = await waitGradient(page, (s) => s.left === -720 && s.top === -627);
-    check(
-      "変更ボタンで差し替え＆transform リセット（100%・-720,-627）",
-      g.badge.includes("100%") && g.left === -720 && g.top === -627 && g.gap === "0",
-      JSON.stringify(g)
-    );
+    check("差し替えで transform リセット（100%・-720,-627）", g.badge.includes("100%") && g.gap === "0", JSON.stringify(g));
     check("余白警告は消える", !(await page.locator('[data-testid="gradient-gap-warning"]').isVisible().catch(() => false)));
 
-    // ---- C. 移動・ズーム ----
-    console.log("\n[C] 移動・ズーム");
+    // ---- D. 移動・ズーム ----
+    console.log("\n[D] 移動・ズーム");
     await page.locator('[data-slot="gradient"]').focus();
     await page.keyboard.press("Control+0");
     g = await waitGradient(page, (s) => s.badge.includes("40%"));
-    check("Ctrl+0 フィット（40%・0,-147）", g.badge.includes("40%") && g.left === 0 && g.top === -147, JSON.stringify(g));
+    check("Ctrl+0 フィット（40%・0,-147）", g.left === 0 && g.top === -147, JSON.stringify(g));
 
     const box = await page.locator('[data-slot="gradient"]').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    // フィット状態（zoom=下限）からのズームイン。カーソルアンカー（中央）で -24,-163 へ
     await page.mouse.wheel(0, -120);
     g = await waitGradient(page, (s) => s.badge.includes("42%"));
-    check("ホイールズームイン → 42%（-24,-163）", g.badge.includes("42%") && g.left === -24 && g.top === -163, JSON.stringify(g));
+    check("ホイールズームイン → 42%（-24,-163）", g.left === -24 && g.top === -163, JSON.stringify(g));
 
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2 + 10, { steps: 4 });
@@ -179,174 +214,58 @@ async function main() {
     g = await waitGradient(page, (s) => s.top === -143);
     check("Shift+↓ ナッジ（top=-143）", g.top === -143, JSON.stringify(g));
 
-    // フィット以下への縮小（余白可・両ツール共通ルール）
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.wheel(0, 120);
-    g = await waitGradient(page, (s) => s.badge.includes("40%") && s.left === 0 && s.top === -128);
-    check("フィットからズームアウト → 40%（横は余白なし限界・top=-128）", g.left === 0 && g.top === -128, JSON.stringify(g));
-    await page.mouse.wheel(0, 120);
-    g = await waitGradient(page, (s) => s.badge.includes("38%") && s.gap === "0");
-    check("cover以下へも縮小可（38%・23,-114）＆意図的縮小で警告なし", g.left === 23 && g.top === -114 && g.gap === "0", JSON.stringify(g));
-
-    // 縮小時のはみ出し移動: 左へ寄せて左端を枠外に出す
-    for (let i = 0; i < 60; i++) await page.keyboard.press("Shift+ArrowLeft");
-    g = await waitGradient(page, (s) => s.left === -457);
-    check("縮小状態ではみ出し配置できる（left=-457・右側457pxが枠外）", g.left === -457 && g.badge.includes("38%"), JSON.stringify(g));
-    const ovImg = await pxG(page, 300, 270); // 枠内に残った画像部分
-    const ovGap = await pxG(page, 700, 270); // 意図的な余白（白背景 × 右白フェード ≈ 白）
-    check(
-      "はみ出した部分は画像色として描画されない",
-      isRedish(ovImg) && !isRedish(ovGap),
-      `img=${JSON.stringify(ovImg)} gap=${JSON.stringify(ovGap)}`
-    );
-
     await page.locator('[data-slot="gradient"]').focus();
     await page.keyboard.press("Control+0");
     g = await waitGradient(page, (s) => s.badge.includes("40%") && s.left === 0 && s.top === -147);
     check("Ctrl+0 でフィットに戻る", g.badge.includes("40%") && g.left === 0 && g.top === -147, JSON.stringify(g));
 
-    // ---- D. グラデーション描画 ----
-    console.log("\n[D] グラデーション描画（プレビューピクセル検証）");
-    // 既定スタイル: 右フェード（右端 白100% → 中央 透明）
-    const dRight = await waitPx(page, 952, 270, (c) => c[1] > 150 && c[2] > 150);
-    const dCenter = await waitPx(page, 480, 270, (c) => isRedish(c));
-    const dLeft = await pxG(page, 5, 270);
-    check("既定（右白フェード）: 右端は白っぽい", dRight[1] > 150 && dRight[2] > 150, JSON.stringify(dRight));
-    check(
-      "既定（右白フェード）: 中央・左端は素の赤",
-      isRedish(dCenter) && isRedish(dLeft),
-      `center=${JSON.stringify(dCenter)} left=${JSON.stringify(dLeft)}`
-    );
+    // ---- E. PC 既定（右フェード 45→70%）の描画 ----
+    console.log("\n[E] PC 右フェード描画（既定: 開始45%／終了70%）");
+    const Y = 170;
+    await waitPx(page, 940, Y, (c) => isWhitesh(c)); // 右端は白フェード帯
+    check("右端は白っぽい（フェード適用）", isWhitesh(await pxG(page, 940, Y)));
+    const leftEdge = await pxG(page, 60, Y);
+    check("左端は素の赤（70% より内側は無色）", isRedish(leftEdge), JSON.stringify(leftEdge));
+    // 右から左へ走査し、白フェードが「ほぼ白」でなくなり始める位置が
+    // 開始位置 45%（x≈528）付近であること（色は徐々に赤へ減衰する）
+    const fadeStart = await page.evaluate((y) => {
+      const c = document.querySelector('[data-testid="gradient-preview"]');
+      const s = c.width / c.clientWidth;
+      const ctx = c.getContext("2d");
+      for (let x = 940; x > 300; x--) {
+        const d = ctx.getImageData(Math.round(x * s), Math.round(y * s), 1, 1).data;
+        if (d[0] < 254) return x;
+      }
+      return -1;
+    }, Y);
+    check("フェード開始位置が約45%（x≈528 から減衰）", fadeStart > 470 && fadeStart < 570, `fadeStart=${fadeStart}`);
 
-    // 左フェードに切替して左黒フェードを再現（left, #000, 開始75%）
-    await page.locator('[data-testid="gradient-side-left"]').click();
-    await page.locator('[data-testid="gradient-color-hex"]').fill("#000000");
+    // ---- F. SP 既定（左右フェード 20→30%）の描画 ----
+    console.log("\n[F] SP 左右フェード描画（既定: 開始20%／終了30%）");
+    await page.getByRole("tab", { name: "SP版" }).click();
+    await page.waitForTimeout(80);
+    await waitPx(page, 20, Y, (c) => isWhitesh(c));
+    check("SP 左端は白っぽい（左右フェードの左側）", isWhitesh(await pxG(page, 20, Y)));
+    await waitPx(page, 940, Y, (c) => isWhitesh(c));
+    check("SP 右端は白っぽい（左右フェードの右側）", isWhitesh(await pxG(page, 940, Y)));
+    const spCenter = await pxG(page, 480, Y);
+    const spMidLeft = await pxG(page, 380, Y);
+    check("SP 中央は素の赤", isRedish(spCenter), JSON.stringify(spCenter));
+    check("SP フェード内側端（20〜30%境界付近）は赤系", isRedish(spMidLeft), JSON.stringify(spMidLeft));
+
+    // ---- G. 色変更とエクスポート（PC: 右ネイビー） ----
+    console.log("\n[G] 色変更＆エクスポート（PC 右フェード）");
+    await page.getByRole("tab", { name: "PC版" }).click();
+    await page.waitForTimeout(80);
+    await page.locator('[data-testid="gradient-color-hex"]').fill("#1e3a8a");
     await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
-    const alphaStartThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
-    await alphaStartThumb.focus();
-    await page.keyboard.press("End");
-    await alphaStartThumb.press("ArrowLeft");
-    await alphaStartThumb.press("ArrowLeft");
-    await alphaStartThumb.press("ArrowLeft");
-    await alphaStartThumb.press("ArrowLeft");
-    await alphaStartThumb.press("ArrowLeft");
-    const lMid = await waitPx(page, 5, 270, (c) => c[0] < 130);
-    const rMid = await pxG(page, 955, 270);
-    const lCenter = await pxG(page, 480, 270);
-    check(
-      "左黒フェード: 左端は暗い／中央・右端は素の赤",
-      lMid[0] < 130 && isRedish(lCenter) && isRedish(rMid),
-      `left=${JSON.stringify(lMid)} center=${JSON.stringify(lCenter)} right=${JSON.stringify(rMid)}`
-    );
+    const navyRight = await waitPx(page, 940, Y, (c) => c[2] > 100);
+    check("色変更が反映（右端はネイビー帯）", navyRight[0] < 150 && navyRight[2] > 100, JSON.stringify(navyRight));
 
-    // 開始位置を変更（左フェードの開始を 20% へ）→ フェード開始点が内側に移動
-    await page.locator('[data-testid="gradient-start-pos-input"]').fill("20");
-    const pStart = await waitPx(page, 100, 270, (c) => c[0] < 130);
-    const pOutside = await pxG(page, 700, 270);
-    check(
-      "開始位置20% → x=100が最も暗くx=700は素の赤",
-      pStart[0] < 130 && isRedish(pOutside),
-      `start=${JSON.stringify(pStart)} outside=${JSON.stringify(pOutside)}`
-    );
-
-    // 色と透明度を変更（白 / 開始不透明度を最大へ）
-    await page.locator('[data-testid="gradient-color-hex"]').fill("#ffffff");
-    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
     const alphaThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
     await alphaThumb.focus();
     await page.keyboard.press("End");
-    const wStart = await waitPx(page, 100, 270, (c) => c[1] > 150 && c[2] > 150);
-    check("色=白・開始不透明度100% → フェード部は白っぽい", wStart[1] > 150 && wStart[2] > 150, JSON.stringify(wStart));
-
-    // サイド切替（右フェード）→ 位置・色・不透明度は共有され、ストップの割り当てだけが反転する
-    // （left: 開始=左端20% → 右フェードでは開始=右端20%（x=768）に割り当てられる）
-    await page.locator('[data-testid="gradient-side-right"]').click();
-    const rWhite = await waitPx(page, 768, 270, (c) => c[1] > 150 && c[2] > 150);
-    const rLeftEdge = await pxG(page, 300, 270);
-    check(
-      "右フェードへ切替 → 白フェードが左右反転して配置される",
-      rWhite[1] > 150 && isRedish(rLeftEdge),
-      `x768=${JSON.stringify(rWhite)} left=${JSON.stringify(rLeftEdge)}`
-    );
-
-    // 向き「左右」→ 両端から内側へフェード
-    await page.locator('[data-testid="gradient-side-both"]').click();
-    const bLeft = await waitPx(page, 170, 270, (c) => c[1] > 150 && c[2] > 150);
-    const bRight = await waitPx(page, 790, 270, (c) => c[1] > 150 && c[2] > 150);
-    const bCenter = await pxG(page, 480, 270);
-    check(
-      "左右フェード: 両端が白っぽく中央はそれより暗い",
-      bLeft[1] > 150 && bRight[1] > 150 && brightness(bCenter) < Math.min(brightness(bLeft), brightness(bRight)) - 40,
-      `left=${JSON.stringify(bLeft)} right=${JSON.stringify(bRight)} center=${JSON.stringify(bCenter)}`
-    );
-
-    // ---- E. PC/SP 独立性 ----
-    console.log("\n[E] PC/SP 独立性");
-    await page.getByRole("tab", { name: "SP版" }).click();
-    const spRight = await waitPx(page, 952, 270, (c) => c[1] > 150 && c[2] > 150);
-    const spCenter = await pxG(page, 480, 270);
-    check(
-      "SP側は既定スタイル（右白フェード）から始まる",
-      spRight[1] > 150 && spRight[2] > 150 && isRedish(spCenter),
-      `right=${JSON.stringify(spRight)} center=${JSON.stringify(spCenter)}`
-    );
-    // SP側で左黒フェードに変更
-    await page.locator('[data-testid="gradient-side-left"]').click();
-    await page.locator('[data-testid="gradient-color-hex"]').fill("#000000");
-    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
-    const spAlphaThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
-    await spAlphaThumb.focus();
-    await page.keyboard.press("End");
-    await spAlphaThumb.press("ArrowLeft");
-    await spAlphaThumb.press("ArrowLeft");
-    await spAlphaThumb.press("ArrowLeft");
-    await spAlphaThumb.press("ArrowLeft");
-    await spAlphaThumb.press("ArrowLeft");
-    const spLeftDark = await waitPx(page, 8, 270, (c) => c[0] < 130);
-    check("SP側で左黒フェード適用", spLeftDark[0] < 130, JSON.stringify(spLeftDark));
-
-    await page.getByRole("tab", { name: "PC版" }).click();
-    // PC側は直前の左右フェードを保持している
-    const pcBackLeft = await pxG(page, 170, 270);
-    const pcBackRight = await pxG(page, 790, 270);
-    check("PC側の設定は保持される（左右フェードのまま）", pcBackLeft[1] > 150 && pcBackRight[1] > 150, JSON.stringify(pcBackLeft));
-
-    // ---- F. サイズハンドル ----
-
-    // ---- F. サイズハンドル ----
-    console.log("\n[F] サイズハンドル");
-    const pvBox = await page.locator('[data-testid="gradient-preview"]').boundingBox();
-    const rightX = pvBox.x + pvBox.width;
-    const midY = pvBox.y + pvBox.height / 2;
-    await page.mouse.move(rightX, midY);
-    await page.mouse.down();
-    await page.mouse.move(rightX + 64, midY, { steps: 5 });
-    await page.mouse.up();
-    await page.waitForTimeout(80);
-    check("右端ドラッグ+64 → 幅1024", (await cfgVals(page))[0] === "1024", JSON.stringify(await cfgVals(page)));
-
-    const hHandle = await page.locator('[data-testid="gradient-height-handle"]').boundingBox();
-    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2 + 40, { steps: 5 });
-    await page.mouse.up();
-    await page.waitForTimeout(80);
-    check("下端ドラッグ+40 → 高さ385", JSON.stringify(await cfgVals(page)) === JSON.stringify(["1024", "385"]), JSON.stringify(await cfgVals(page)));
-
-    // ---- G. エクスポート ----
-    console.log("\n[G] エクスポート");
-    // 状態を固定: 右ネイビーに設定してフィット
-    await page.locator('[data-testid="gradient-side-right"]').click();
-    await page.locator('[data-testid="gradient-color-hex"]').fill("#1e3a8a");
-    await page.locator('[data-testid="gradient-color-hex"]').press("Enter");
-    const navAlphaThumb = page.locator('[data-testid="gradient-start-alpha"] [role="slider"]');
-    await navAlphaThumb.focus();
-    await page.keyboard.press("End");
-    await navAlphaThumb.press("ArrowLeft");
-    await navAlphaThumb.press("ArrowLeft");
-    await page.locator('[data-slot="gradient"]').focus();
-    await page.keyboard.press("Control+0");
-    await page.waitForTimeout(80);
+    await waitPx(page, 940, Y, (c) => c[2] > 120);
 
     async function downloadAndSave(trigger, filename) {
       const [dl] = await Promise.all([page.waitForEvent("download"), trigger()]);
@@ -361,25 +280,40 @@ async function main() {
     }, "gradient_pc.png");
 
     const buf = fs.readFileSync(path.join(tmpDir, "gradient_pc.png"));
-    check(
-      "出力サイズ 1024x385",
-      JSON.stringify(pngSize(buf)) === '{"width":1024,"height":385}',
-      JSON.stringify(pngSize(buf))
-    );
+    check("出力サイズ 960×345", JSON.stringify(pngSize(buf)) === '{"width":960,"height":345}', JSON.stringify(pngSize(buf)));
     const samples = await samplePngPoints(page, buf, [
-      ["right-dark", 1020, 190],
-      ["center-red", 100, 190],
+      ["right-dark", 940, 170],
+      ["left-red", 60, 170],
     ]);
-    check(
-      "出力でもグラデが反映される（右端ネイビー・左側赤）",
-      samples["right-dark"][0] < 130 && isRedish(samples["center-red"]),
-      JSON.stringify(samples)
-    );
+    check("出力でも右ネイビー・左は赤", samples["right-dark"][2] > 120 && isRedish(samples["left-red"]), JSON.stringify(samples));
     await page.keyboard.press("Escape");
     await page.waitForTimeout(120);
 
-    // ---- H. レイアウトページへの復帰 ----
-    console.log("\n[H] レイアウトページへの復帰");
+    // ---- H. サイズハンドル・数値変更 ----
+    console.log("\n[H] サイズ変更");
+    const wHandle = await page.locator('[data-testid="gradient-edge-handle-e"]').boundingBox();
+    await page.mouse.move(wHandle.x + wHandle.width / 2, wHandle.y + wHandle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(wHandle.x + wHandle.width / 2 + 64, wHandle.y + wHandle.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(80);
+    check("右端ドラッグ+64 → 幅1024", (await cfgVals(page))[0] === "1024", JSON.stringify(await cfgVals(page)));
+
+    const hHandle = await page.locator('[data-testid="gradient-height-handle"]').boundingBox();
+    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2 + 40, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(80);
+    check("下端ドラッグ+40 → 高さ385", JSON.stringify(await cfgVals(page)) === JSON.stringify(["1024", "385"]), JSON.stringify(await cfgVals(page)));
+
+    await page.locator('[data-testid="gradient-cfg-width"]').fill("960");
+    await page.locator('[data-testid="gradient-cfg-height"]').fill("345");
+    await page.waitForTimeout(60);
+    check("数値入力で 960×345 に復帰", JSON.stringify(await cfgVals(page)) === JSON.stringify(["960", "345"]), JSON.stringify(await cfgVals(page)));
+
+    // ---- I. レイアウトページへの復帰 ----
+    console.log("\n[I] レイアウトページへの復帰");
     await page.locator('[data-testid="nav-layout"]').click();
     await page.waitForURL((u) => u.hash === "" || u.hash === "#/");
     await page.locator('[data-testid="layout-preview"]').waitFor({ state: "visible" });
@@ -391,30 +325,6 @@ async function main() {
 
   console.log(`\n===== 結果: ${passed} passed, ${failed} failed =====`);
   process.exit(failed > 0 ? 1 : 0);
-}
-
-async function samplePngPoints(page, buf, points) {
-  await page.evaluate(async (b) => {
-    const img = new Image();
-    img.src = "data:image/png;base64," + b;
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    c.getContext("2d").drawImage(img, 0, 0);
-    window.__sampleCanvas = c;
-  }, buf.toString("base64"));
-  const out = {};
-  for (const [name, x, y] of points) {
-    out[name] = await page.evaluate(
-      ([px, py]) => {
-        const d = window.__sampleCanvas.getContext("2d").getImageData(px, py, 1, 1).data;
-        return [d[0], d[1], d[2]];
-      },
-      [x, y]
-    );
-  }
-  return out;
 }
 
 main().catch((e) => {

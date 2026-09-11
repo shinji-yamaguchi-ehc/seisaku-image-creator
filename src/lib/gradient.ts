@@ -29,18 +29,16 @@ export interface GradientStyle {
   endAlpha: number;
 }
 
-export function defaultPositionsFor(side: "left" | "right" | "both"): { startPos: number; endPos: number } {
-  return side === "both" ? { startPos: 0, endPos: 70 } : { startPos: 0, endPos: 60 };
+/**
+ * モード別の既定スタイル（向きは PC=右フェード / SP=左右フェード に固定）。
+ * 開始位置・終了位置は依頼元の Photoshop フォーマット準拠:
+ *   PC: 開始45% / 終了70%、SP: 開始20% / 終了30%
+ */
+export function defaultStyleFor(mode: "pc" | "sp"): GradientStyle {
+  return mode === "pc"
+    ? { side: "right", startPos: 45, endPos: 70, color: "#ffffff", startAlpha: 100, endAlpha: 0 }
+    : { side: "both", startPos: 20, endPos: 30, color: "#ffffff", startAlpha: 100, endAlpha: 0 };
 }
-
-/** 既定スタイル: 右端 → 内側50% にかけて 白100% → 透明 */
-export const DEFAULT_GRADIENT_STYLE: GradientStyle = {
-  side: "right",
-  ...defaultPositionsFor("right"),
-  color: "#ffffff",
-  startAlpha: 100,
-  endAlpha: 0,
-};
 
 const toInt = (v: unknown, lo: number, hi: number, fallback: number): number => {
   const n = Math.round(typeof v === "number" ? v : Number(v));
