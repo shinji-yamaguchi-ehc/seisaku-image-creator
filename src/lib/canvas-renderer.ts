@@ -1,5 +1,5 @@
 ﻿import type { ImageSlot, Transform, LayoutConfig } from "./types";
-import { computeGeom, getSlotDefs } from "./layout";
+import { frameRects } from "./layout";
 import { normalizeTransform } from "./transform";
 import type { GradientCanvasConfig, GradientStyle } from "./gradient";
 import { createSideGradient, normalizedFor } from "./gradient";
@@ -15,11 +15,10 @@ export function drawLayout(
   transforms: Transform[],
   config: LayoutConfig
 ): void {
-  const dim = computeGeom(config);
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, dim.W, dim.H);
+  ctx.fillRect(0, 0, config.canvasWidth, config.canvasHeight);
 
-  const slotDefs = getSlotDefs(config);
+  const slotDefs = frameRects(config);
   images.forEach((img, i) => {
     if (!img) return;
     const slot = slotDefs[i];
@@ -51,10 +50,9 @@ export function renderCanvas(
   transforms: Transform[],
   config: LayoutConfig
 ): HTMLCanvasElement {
-  const dim = computeGeom(config);
   const canvas = document.createElement("canvas");
-  canvas.width = dim.W;
-  canvas.height = dim.H;
+  canvas.width = config.canvasWidth;
+  canvas.height = config.canvasHeight;
   const ctx = canvas.getContext("2d")!;
   drawLayout(ctx, images, transforms, config);
   return canvas;
@@ -68,8 +66,7 @@ export function renderPreview(
   config: LayoutConfig,
   cssWidth: number
 ): void {
-  const g = computeGeom(config);
-  const cssHeight = cssWidth * (g.H / g.W);
+  const cssHeight = cssWidth * (config.canvasHeight / config.canvasWidth);
   const dpr = window.devicePixelRatio || 1;
   canvas.style.width = `${cssWidth}px`;
   canvas.style.height = `${cssHeight}px`;

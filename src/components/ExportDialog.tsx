@@ -8,7 +8,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ImageSlot, Transform, LayoutConfig } from "@/lib/types";
-import { computeGeom } from "@/lib/layout";
 import { renderCanvas, downloadCanvas } from "@/lib/canvas-renderer";
 
 interface ExportDialogProps {
@@ -30,8 +29,8 @@ export function ExportDialog({
   const [pcPreview, setPcPreview] = useState<string | null>(null);
   const [spPreview, setSpPreview] = useState<string | null>(null);
 
-  const pcDim = computeGeom(pcConfig);
-  const spDim = computeGeom(spConfig);
+  const pcDim = { W: pcConfig.canvasWidth, H: pcConfig.canvasHeight };
+  const spDim = { W: spConfig.canvasWidth, H: spConfig.canvasHeight };
 
   const generatePreviews = useCallback(async () => {
     const pcCanvas = await renderCanvas(images, pcTransforms, pcConfig);
