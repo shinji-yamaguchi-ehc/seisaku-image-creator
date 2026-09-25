@@ -11,6 +11,9 @@
 
 ## 完了
 
+- [x] 初期テンプレート由来の未使用資産を削除し、HTML の言語・タイトルを日本語化
+  - 未参照の `temp_init/` と初期 SVG アイコンを削除し、`index.html` から不要な favicon 読み込みを削除
+  - `lang="ja"` とページタイトル「制作画像クリエイター」を設定
 - [x] GitHub Pages デプロイを main push 専用の公式 GitHub Actions 方式へ再構成
   - `.github/workflows/deploy-pages.yaml` へ一本化し、`main` への push のみで `dist/` を artifact 経由で GitHub Pages へ公開
   - `develop` 向けと gh-pages ブランチ更新向けのワークフローを廃止し、Pages の公開元を GitHub Actions に変更
