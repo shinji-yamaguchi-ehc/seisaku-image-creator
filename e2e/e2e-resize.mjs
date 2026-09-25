@@ -169,6 +169,34 @@ async function main() {
     await page.waitForTimeout(60);
     check("A-1 は1スロット（全面1枚）", (await emptyCount()) === 1);
 
+    await page.locator('[data-testid="pattern-B-1"]').click();
+    await page.waitForTimeout(60);
+    check("B-1 は2スロット（縦2分割）", (await emptyCount()) === 2);
+
+    await page.locator('[data-testid="pattern-B-2"]').click();
+    await page.waitForTimeout(60);
+    check("B-2 は2スロット（大＋小）", (await emptyCount()) === 2);
+
+    // C-1: 右が大メイン＋左に上下2枚、境界は曲線
+    await page.locator('[data-testid="pattern-C-1"]').click();
+    await page.waitForTimeout(60);
+    check("C-1 は3スロット（大＋縦2分割・曲線）", (await emptyCount()) === 3);
+    check("C-1 キャンバス PC 960×600", (await widthInput.inputValue()) === "960" && (await heightInput.inputValue()) === "600");
+    await page.getByRole("tab", { name: "SP版" }).click();
+    await page.waitForTimeout(80);
+    check("C-1 の SP は3スロット・640×380", (await emptyCount()) === 3 && (await widthInput.inputValue()) === "640" && (await heightInput.inputValue()) === "380");
+    await page.getByRole("tab", { name: "PC版" }).click();
+    await page.waitForTimeout(60);
+
+    // B-2 選択 → SP は B-1 で出力
+    await page.locator('[data-testid="pattern-B-2"]').click();
+    await page.waitForTimeout(60);
+    await page.getByRole("tab", { name: "SP版" }).click();
+    await page.waitForTimeout(80);
+    check("B-2 の SP は B-1 準拠（フォールバック注記）", await page.locator('[data-testid="sp-fallback-note"]').isVisible());
+    await page.getByRole("tab", { name: "PC版" }).click();
+    await page.waitForTimeout(60);
+
     // D-2 選択 → PC は D-2（4枠）、SP は D-1 で出力
     await page.locator('[data-testid="pattern-D-2"]').click();
     await page.waitForTimeout(60);
@@ -280,6 +308,16 @@ async function main() {
     await page.getByRole("button", { name: "エクスポート" }).click();
     await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
     check("プレビューが2枚生成される", (await page.locator('img[src^="data:image/png"]').count()) === 2);
+
+    // 書き出し形式（既定 JPG）→ PNG に切り替えてピクセル検証
+    check("書き出し形式の既定は JPG", (await page.locator('[data-testid="format-jpg"]').getAttribute("aria-pressed")) === "true");
+    const [jpgDl] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "PC版をダウンロード" }).click(),
+    ]);
+    check("JPG 選択時は output_pc.jpg で保存", jpgDl.suggestedFilename() === "output_pc.jpg", jpgDl.suggestedFilename());
+    await page.locator('[data-testid="format-png"]').click();
+
     const pcPath = await downloadAndSave(() => page.getByRole("button", { name: "PC版をダウンロード" }).click(), "output_pc.png");
     const spPath = await downloadAndSave(() => page.getByRole("button", { name: "SP版をダウンロード" }).click(), "output_sp.png");
 
@@ -310,7 +348,8 @@ async function main() {
     check("SP版 slot2=青", eq(spSamples["s2"], COLORS.blue));
     check("SP版 slot3=黄", eq(spSamples["s3"], COLORS.yellow));
     await page.keyboard.press("Escape"); // ダイアログを閉じる
-    await page.waitForTimeout(120);
+    // ダイアログが完全に離脱するまで待つ
+    await page.locator('[role="dialog"]').waitFor({ state: "detached", timeout: 5000 });
 
     // ---- G. スロット操作（削除・再追加・小さい画像の警告） ----
     console.log("\n[G] スロット直接操作（削除／再追加／小さい画像の警告）");
@@ -365,6 +404,58 @@ async function main() {
     await heightInput.fill("600");
     await page.waitForTimeout(60);
     check("600 に復帰", (await heightInput.inputValue()) === "600");
+
+    // ---- I. C-1 の円弧境界（プレビュー＆最終出力へ反映） ----
+    console.log("\n[I] C-1 円弧境界の検証（プレビュー／エクスポート）");
+    await page.locator('[data-testid="pattern-C-1"]').click();
+    await page.waitForTimeout(80);
+    // slot0=赤(左上) / slot1=緑(右大) / slot2=青(左下)
+    // 直線境界なら x=320。曲線は中央で左（x≈253）へ膨らむ。
+    check("プレビュー: 上端は境界付近で赤→緑（直線側 x≈320）", eq(await px(page, 270, 60), COLORS.red) && eq(await px(page, 320, 60), COLORS.green));
+    check("プレビュー: 中央で大画像が左へ膨らむ（x=290 が緑）", eq(await px(page, 290, 290), COLORS.green), JSON.stringify(await px(page, 290, 290)));
+    check("プレビュー: 中央のサブ画像側は赤（x=230）", eq(await px(page, 230, 290), COLORS.red));
+
+    const c1Path = await downloadAndSave(async () => {
+      await page.getByRole("button", { name: "エクスポート" }).click();
+      await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
+      await page.getByRole("button", { name: "PC版をダウンロード" }).click();
+    }, "output_pc_c1.png");
+    const c1Buf = fs.readFileSync(c1Path);
+    check("C-1 PC版 960×600", JSON.stringify(pngSize(c1Buf)) === '{"width":960,"height":600}', JSON.stringify(pngSize(c1Buf)));
+    const c1 = await samplePngPoints(page, c1Buf, [
+      ["top-left", 270, 60],
+      ["top-right", 320, 60],
+      ["upper-left", 225, 160],
+      ["upper-right", 300, 160],
+      ["mid-left", 230, 290],
+      ["mid-right", 290, 290],
+      ["low-left", 230, 310],
+      ["low-right", 290, 310],
+      ["bottom-left", 270, 540],
+      ["bottom-right", 320, 540],
+    ]);
+    check(
+      "出力: 上端は赤→緑（境界 x≈320）",
+      eq(c1["top-left"], COLORS.red) && eq(c1["top-right"], COLORS.green),
+      JSON.stringify(c1)
+    );
+    check(
+      "出力: 中央で大画像が左へ膨らむ（x=290 が緑・x=230 が赤）",
+      eq(c1["mid-right"], COLORS.green) && eq(c1["mid-left"], COLORS.red),
+      JSON.stringify(c1)
+    );
+    check(
+      "出力: 上下のサブ画像（赤/青）と大画像（緑）が曲線で分割",
+      eq(c1["upper-left"], COLORS.red) &&
+        eq(c1["upper-right"], COLORS.green) &&
+        eq(c1["low-left"], COLORS.blue) &&
+        eq(c1["low-right"], COLORS.green) &&
+        eq(c1["bottom-left"], COLORS.blue) &&
+        eq(c1["bottom-right"], COLORS.green),
+      JSON.stringify(c1)
+    );
+    await page.keyboard.press("Escape");
+    await page.locator('[role="dialog"]').waitFor({ state: "detached", timeout: 5000 });
   } finally {
     await browser.close();
     await server.close();

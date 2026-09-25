@@ -273,11 +273,20 @@ async function main() {
       await dl.saveAs(p);
       return p;
     }
-    await downloadAndSave(async () => {
-      await page.getByRole("button", { name: "エクスポート" }).click();
-      await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
-      await page.getByRole("button", { name: "PC版をダウンロード" }).click();
-    }, "gradient_pc.png");
+    await page.getByRole("button", { name: "エクスポート" }).click();
+    await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
+    // 書き出し形式（既定 JPG）→ PNG に切り替えてピクセル検証
+    check("書き出し形式の既定は JPG", (await page.locator('[data-testid="format-jpg"]').getAttribute("aria-pressed")) === "true");
+    const [jpgDl] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "PC版をダウンロード" }).click(),
+    ]);
+    check("JPG 選択時は gradient_pc.jpg で保存", jpgDl.suggestedFilename() === "gradient_pc.jpg", jpgDl.suggestedFilename());
+    await page.locator('[data-testid="format-png"]').click();
+    await downloadAndSave(
+      () => page.getByRole("button", { name: "PC版をダウンロード" }).click(),
+      "gradient_pc.png"
+    );
 
     const buf = fs.readFileSync(path.join(tmpDir, "gradient_pc.png"));
     check("出力サイズ 960×345", JSON.stringify(pngSize(buf)) === '{"width":960,"height":345}', JSON.stringify(pngSize(buf)));
@@ -287,22 +296,27 @@ async function main() {
     ]);
     check("出力でも右ネイビー・左は赤", samples["right-dark"][2] > 120 && isRedish(samples["left-red"]), JSON.stringify(samples));
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(120);
+    // ダイアログが完全に離脱するまで待つ（閉じアニメーション中はオーバーレイがポインタを奪う）
+    await page.locator('[role="dialog"]').waitFor({ state: "detached", timeout: 5000 });
 
     // ---- H. サイズハンドル・数値変更 ----
     console.log("\n[H] サイズ変更");
     const wHandle = await page.locator('[data-testid="gradient-edge-handle-e"]').boundingBox();
-    await page.mouse.move(wHandle.x + wHandle.width / 2, wHandle.y + wHandle.height / 2);
+    const wStartX = wHandle.x + wHandle.width / 2 - 2;
+    const wMidY = wHandle.y + wHandle.height / 2;
+    await page.mouse.move(wStartX, wMidY);
     await page.mouse.down();
-    await page.mouse.move(wHandle.x + wHandle.width / 2 + 64, wHandle.y + wHandle.height / 2, { steps: 5 });
+    await page.mouse.move(wStartX + 64, wMidY, { steps: 5 });
     await page.mouse.up();
     await page.waitForTimeout(80);
     check("右端ドラッグ+64 → 幅1024", (await cfgVals(page))[0] === "1024", JSON.stringify(await cfgVals(page)));
 
     const hHandle = await page.locator('[data-testid="gradient-height-handle"]').boundingBox();
-    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2);
+    const hStartY = hHandle.y + hHandle.height / 2 - 2;
+    const hMidX = hHandle.x + hHandle.width / 2;
+    await page.mouse.move(hMidX, hStartY);
     await page.mouse.down();
-    await page.mouse.move(hHandle.x + hHandle.width / 2, hHandle.y + hHandle.height / 2 + 40, { steps: 5 });
+    await page.mouse.move(hMidX, hStartY + 40, { steps: 5 });
     await page.mouse.up();
     await page.waitForTimeout(80);
     check("下端ドラッグ+40 → 高さ385", JSON.stringify(await cfgVals(page)) === JSON.stringify(["1024", "385"]), JSON.stringify(await cfgVals(page)));

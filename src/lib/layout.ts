@@ -19,12 +19,23 @@ export interface SlotRect {
   height: number;
 }
 
+/**
+ * 円弧の境界線（縦方向に伸びる）。C-1 の「大画像と左サブ画像の境界」で使用。
+ * x は境界の基準位置（正規化・キャンバス幅比）、bulge は左方向への膨らみ（同）。
+ */
+export interface CurveSpec {
+  x: number;
+  bulge: number;
+}
+
 export interface GeomDef {
   /** このモードでのキャンバス初期サイズ */
   width: number;
   height: number;
-  /** 各枠の矩形（0..1 正規化座標 [x0, y0, x1, y1]）。並びは ①(大きな画像)→②〜④ の順 */
+  /** 各枠の矩形（0..1 正規化座標 [x0, y0, x1, y1]）。並びは見本の ①②③… の順 */
   frames: [number, number, number, number][];
+  /** 省略時は直線分割。指定時は縦方向の円弧境界を持つ */
+  curve?: CurveSpec;
 }
 
 export interface PatternPreset {
@@ -87,25 +98,29 @@ export const PATTERNS: PatternPreset[] = [
   },
   {
     id: "C-1",
-    desc: "大＋縦2分割",
+    desc: "大＋縦2分割（曲線）",
     frameCount: 3,
+    // 見本どおり「右に大きいメイン画像／左に上下2枚」で、境界は大きな円弧（左へ膨らむ）
     pc: {
       width: 960,
       height: 600,
+      curve: { x: 1 / 3, bulge: 0.07 },
+      // ① 左上 320×300 ／ ② 右 大 640×600 ／ ③ 左下 320×300
       frames: [
-        [0, 0, 2 / 3, 1],
-        [2 / 3, 0, 1, 0.5],
-        [2 / 3, 0.5, 1, 1],
+        [0, 0, 1 / 3, 0.5],
+        [1 / 3, 0, 1, 1],
+        [0, 0.5, 1 / 3, 1],
       ],
     },
     sp: {
       width: 640,
       height: 380,
-      // ① 426×380（左）＋ ②③ 214×190（右・上下）
+      curve: { x: 214 / 640, bulge: 0.07 },
+      // ① 左上 214×190 ／ ② 右 大 426×380 ／ ③ 左下 214×190
       frames: [
-        [0, 0, 426 / 640, 1],
-        [426 / 640, 0, 1, 0.5],
-        [426 / 640, 0.5, 1, 1],
+        [0, 0, 214 / 640, 0.5],
+        [214 / 640, 0, 1, 1],
+        [0, 0.5, 214 / 640, 1],
       ],
     },
   },
@@ -212,7 +227,7 @@ export function geomDefFor(id: PatternId, mode: CanvasMode): GeomDef {
 /** パターン選択時の初期 LayoutConfig を生成 */
 export function presetConfig(id: PatternId, mode: CanvasMode): LayoutConfig {
   const def = geomDefFor(id, mode);
-  return { canvasWidth: def.width, canvasHeight: def.height, frames: def.frames };
+  return { canvasWidth: def.width, canvasHeight: def.height, frames: def.frames, curve: def.curve };
 }
 
 const uniq = (arr: number[]): number[] => [...new Set(arr)].sort((a, b) => a - b);
@@ -239,7 +254,7 @@ const toInt = (v: unknown, lo: number, hi: number, fallback: number): number => 
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
 };
 
-/** LayoutConfig を範囲内に収める（NaN 等は現在値を維持。frames は不変） */
+/** LayoutConfig を範囲内に収める（NaN 等は現在値を維持。frames / curve は不変） */
 export function normalizeLayoutConfig(
   prev: LayoutConfig,
   partial: Partial<Pick<LayoutConfig, "canvasWidth" | "canvasHeight">>
@@ -253,5 +268,59 @@ export function normalizeLayoutConfig(
       prev.canvasHeight
     ),
     frames: prev.frames,
+    curve: prev.curve,
   };
+}
+
+/**
+ * 円弧境界の各ピクセル座標を返す（境界線上の点を t=0..1 でサンプリング）。
+ * 二次ベジェ（始点 (xd,0) → 制御 (xd-2s, H/2) → 終点 (xd,H)）で、中央が左へ s 膨らむ。
+ */
+export function curvePoint(config: LayoutConfig, t: number): { x: number; y: number } | null {
+  const c = config.curve;
+  if (!c) return null;
+  const W = config.canvasWidth;
+  const H = config.canvasHeight;
+  const xd = c.x * W;
+  const ctrl = xd - 2 * c.bulge * W;
+  const y = t * H;
+  const x = (1 - t) * (1 - t) * xd + 2 * (1 - t) * t * ctrl + t * t * xd;
+  return { x, y };
+}
+
+/** 円弧境界を Canvas のクリップ用パスとして返す（side 側の領域） */
+export function curveClipPath(config: LayoutConfig, side: "left" | "right"): Path2D | null {
+  const c = config.curve;
+  if (!c) return null;
+  const W = config.canvasWidth;
+  const H = config.canvasHeight;
+  const xd = c.x * W;
+  const ctrl = xd - 2 * c.bulge * W;
+  const p = new Path2D();
+  if (side === "right") {
+    p.moveTo(xd, 0);
+    p.quadraticCurveTo(ctrl, H / 2, xd, H);
+    p.lineTo(W, H);
+    p.lineTo(W, 0);
+    p.closePath();
+  } else {
+    p.moveTo(xd, 0);
+    p.lineTo(0, 0);
+    p.lineTo(0, H);
+    p.lineTo(xd, H);
+    p.quadraticCurveTo(ctrl, H / 2, xd, 0);
+    p.closePath();
+  }
+  return p;
+}
+
+/** 円弧境界の SVG path 文字列（プレビューのガイド表示用） */
+export function curveGuideD(config: LayoutConfig): string | null {
+  const c = config.curve;
+  if (!c) return null;
+  const W = config.canvasWidth;
+  const H = config.canvasHeight;
+  const xd = c.x * W;
+  const ctrl = xd - 2 * c.bulge * W;
+  return `M ${xd} 0 Q ${ctrl} ${H / 2} ${xd} ${H}`;
 }

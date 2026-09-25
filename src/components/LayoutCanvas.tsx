@@ -2,7 +2,7 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ShortcutList } from "@/components/ShortcutList";
-import { frameRects, normalizeLayoutConfig } from "@/lib/layout";
+import { frameRects, curveGuideD, normalizeLayoutConfig } from "@/lib/layout";
 import {
   ZOOM_MIN,
   ZOOM_STEP,
@@ -60,6 +60,7 @@ export function LayoutCanvas({
   const W = config.canvasWidth;
   const H = config.canvasHeight;
   const rects = useMemo(() => frameRects(config), [config]);
+  const curveD = useMemo(() => curveGuideD(config), [config]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -375,25 +376,29 @@ export function LayoutCanvas({
             className="absolute left-0 top-0 block rounded-lg"
           />
 
-          {/* 枠ガイド（各枠の輪郭を薄く表示） */}
+          {/* 枠ガイド（各枠の輪郭を薄く表示。曲線パターンは曲線境界を表示） */}
           <svg
             className="pointer-events-none absolute inset-0 z-10"
             width={W}
             height={H}
             aria-hidden="true"
           >
-            {rects.map((r, i) => (
-              <rect
-                key={i}
-                x={r.x + 0.5}
-                y={r.y + 0.5}
-                width={Math.max(0, r.width - 1)}
-                height={Math.max(0, r.height - 1)}
-                fill="none"
-                stroke="rgba(0,0,0,0.12)"
-                strokeWidth={1}
-              />
-            ))}
+            {curveD ? (
+              <path d={curveD} fill="none" stroke="rgba(0,0,0,0.14)" strokeWidth={1} />
+            ) : (
+              rects.map((r, i) => (
+                <rect
+                  key={i}
+                  x={r.x + 0.5}
+                  y={r.y + 0.5}
+                  width={Math.max(0, r.width - 1)}
+                  height={Math.max(0, r.height - 1)}
+                  fill="none"
+                  stroke="rgba(0,0,0,0.12)"
+                  strokeWidth={1}
+                />
+              ))
+            )}
           </svg>
 
           {/* スロットレイヤー（パン操作・キーボード・コントロール） */}
@@ -619,7 +624,7 @@ export function LayoutCanvas({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             className="hidden"
             data-testid="slot-file-input"
             onChange={handleFileInputChange}

@@ -1,8 +1,9 @@
 ﻿import type { ImageSlot, Transform, LayoutConfig } from "./types";
-import { frameRects } from "./layout";
+import { curveClipPath, frameRects } from "./layout";
 import { normalizeTransform } from "./transform";
 import type { GradientCanvasConfig, GradientStyle } from "./gradient";
 import { createSideGradient, normalizedFor } from "./gradient";
+import { DEFAULT_EXPORT_FORMAT, exportMime, type ExportFormatId } from "./image-loader";
 
 /**
  * レイアウトを ctx へ描画する唯一の実装。
@@ -19,6 +20,10 @@ export function drawLayout(
   ctx.fillRect(0, 0, config.canvasWidth, config.canvasHeight);
 
   const slotDefs = frameRects(config);
+  const curveLeft = curveClipPath(config, "left");
+  const curveRight = curveClipPath(config, "right");
+  const splitX = config.curve ? config.curve.x * config.canvasWidth : 0;
+
   images.forEach((img, i) => {
     if (!img) return;
     const slot = slotDefs[i];
@@ -30,9 +35,15 @@ export function drawLayout(
     const h = img.naturalHeight * t.zoom;
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(slot.x, slot.y, slot.width, slot.height);
-    ctx.clip();
+    if (config.curve && slot.x + slot.width / 2 >= splitX) {
+      // 曲線の右側（大画像）: 枠矩形ではなく曲線パス全面でクリップ（膨らみを反映）
+      ctx.clip(curveRight!);
+    } else {
+      ctx.beginPath();
+      ctx.rect(slot.x, slot.y, slot.width, slot.height);
+      ctx.clip();
+      if (config.curve) ctx.clip(curveLeft!);
+    }
     ctx.drawImage(
       img.element,
       slot.x + slot.width / 2 - t.focusX * w,
@@ -81,7 +92,11 @@ export function renderPreview(
   drawLayout(ctx, images, transforms, config);
 }
 
-export function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
+export function downloadCanvas(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  format: ExportFormatId = DEFAULT_EXPORT_FORMAT
+) {
   canvas.toBlob((blob) => {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
@@ -92,7 +107,7 @@ export function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, "image/png");
+  }, exportMime(format));
 }
 
 /**
