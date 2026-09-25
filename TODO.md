@@ -14,6 +14,7 @@
 - [x] GitHub Pages デプロイを main push 専用の公式 GitHub Actions 方式へ再構成
   - `.github/workflows/deploy-pages.yaml` へ一本化し、`main` への push のみで `dist/` を artifact 経由で GitHub Pages へ公開
   - `develop` 向けと gh-pages ブランチ更新向けのワークフローを廃止し、Pages の公開元を GitHub Actions に変更
+  - `actions/deploy-pages@v5` を使用し、Node.js 20 廃止に伴うランタイム警告を解消
 - [x] 追加依頼のレイアウト見本画像（`追加依頼/画像.png`）に合わせ C-1 を修正し、書き出し形式（JPG既定）を選択可能に
   - C-1 を「右に大メイン画像／左に上下2枚」へ変更し、両領域の境界を大きな円弧（canvas 幅の 7% 左へ膨らむ）に。見本の凡例どおり枠の並びは ①左上・②右大・③左下
   - 円弧は `Path2D` によるクリップで実装し、プレビュー・書き出し双方に反映（出力画像のピクセルで検証）
