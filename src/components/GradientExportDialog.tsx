@@ -10,6 +10,8 @@ import {
 import type { ImageSlot, Transform } from "@/lib/types";
 import type { GradientCanvasConfig, GradientStyle } from "@/lib/gradient";
 import { renderGradientCanvas, downloadCanvas } from "@/lib/canvas-renderer";
+import { DEFAULT_EXPORT_FORMAT, type ExportFormatId } from "@/lib/image-loader";
+import { FormatSelector } from "@/components/FormatSelector";
 
 interface GradientExportDialogProps {
   image: ImageSlot | null;
@@ -33,6 +35,7 @@ export function GradientExportDialog({
   const [open, setOpen] = useState(false);
   const [pcPreview, setPcPreview] = useState<string | null>(null);
   const [spPreview, setSpPreview] = useState<string | null>(null);
+  const [format, setFormat] = useState<ExportFormatId>(DEFAULT_EXPORT_FORMAT);
 
   const generatePreviews = useCallback(() => {
     const pcCanvas = renderGradientCanvas(image, pcTransform, pcConfig, pcStyle);
@@ -50,12 +53,12 @@ export function GradientExportDialog({
   );
 
   const handleDownloadPC = useCallback(() => {
-    downloadCanvas(renderGradientCanvas(image, pcTransform, pcConfig, pcStyle), "gradient_pc.png");
-  }, [image, pcTransform, pcConfig, pcStyle]);
+    downloadCanvas(renderGradientCanvas(image, pcTransform, pcConfig, pcStyle), `gradient_pc.${format}`, format);
+  }, [image, pcTransform, pcConfig, pcStyle, format]);
 
   const handleDownloadSP = useCallback(() => {
-    downloadCanvas(renderGradientCanvas(image, spTransform, spConfig, spStyle), "gradient_sp.png");
-  }, [image, spTransform, spConfig, spStyle]);
+    downloadCanvas(renderGradientCanvas(image, spTransform, spConfig, spStyle), `gradient_sp.${format}`, format);
+  }, [image, spTransform, spConfig, spStyle, format]);
 
   const handleDownloadBoth = useCallback(() => {
     handleDownloadPC();
@@ -86,6 +89,7 @@ export function GradientExportDialog({
               <img src={spPreview} alt="SP版プレビュー" className="w-full rounded border" />
             )}
           </div>
+          <FormatSelector value={format} onChange={setFormat} />
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={handleDownloadPC}>
               PC版をダウンロード

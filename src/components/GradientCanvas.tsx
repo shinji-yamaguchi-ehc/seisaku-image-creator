@@ -475,7 +475,7 @@ export function GradientCanvas({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             className="hidden"
             data-testid="gradient-file-input"
             onChange={(e) => {

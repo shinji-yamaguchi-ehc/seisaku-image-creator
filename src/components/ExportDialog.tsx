@@ -8,8 +8,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ImageSlot, Transform, LayoutConfig } from "@/lib/types";
-import { computeGeom } from "@/lib/layout";
 import { renderCanvas, downloadCanvas } from "@/lib/canvas-renderer";
+import { DEFAULT_EXPORT_FORMAT, type ExportFormatId } from "@/lib/image-loader";
+import { FormatSelector } from "@/components/FormatSelector";
 
 interface ExportDialogProps {
   images: (ImageSlot | null)[];
@@ -29,9 +30,10 @@ export function ExportDialog({
   const [open, setOpen] = useState(false);
   const [pcPreview, setPcPreview] = useState<string | null>(null);
   const [spPreview, setSpPreview] = useState<string | null>(null);
+  const [format, setFormat] = useState<ExportFormatId>(DEFAULT_EXPORT_FORMAT);
 
-  const pcDim = computeGeom(pcConfig);
-  const spDim = computeGeom(spConfig);
+  const pcDim = { W: pcConfig.canvasWidth, H: pcConfig.canvasHeight };
+  const spDim = { W: spConfig.canvasWidth, H: spConfig.canvasHeight };
 
   const generatePreviews = useCallback(async () => {
     const pcCanvas = await renderCanvas(images, pcTransforms, pcConfig);
@@ -53,20 +55,20 @@ export function ExportDialog({
 
   const handleDownloadPC = useCallback(async () => {
     const pcCanvas = await renderCanvas(images, pcTransforms, pcConfig);
-    downloadCanvas(pcCanvas, "output_pc.png");
-  }, [images, pcTransforms, pcConfig]);
+    downloadCanvas(pcCanvas, `output_pc.${format}`, format);
+  }, [images, pcTransforms, pcConfig, format]);
 
   const handleDownloadSP = useCallback(async () => {
     const spCanvas = await renderCanvas(images, spTransforms, spConfig);
-    downloadCanvas(spCanvas, "output_sp.png");
-  }, [images, spTransforms, spConfig]);
+    downloadCanvas(spCanvas, `output_sp.${format}`, format);
+  }, [images, spTransforms, spConfig, format]);
 
   const handleDownloadBoth = useCallback(async () => {
     const pcCanvas = await renderCanvas(images, pcTransforms, pcConfig);
     const spCanvas = await renderCanvas(images, spTransforms, spConfig);
-    downloadCanvas(pcCanvas, "output_pc.png");
-    downloadCanvas(spCanvas, "output_sp.png");
-  }, [images, pcTransforms, spConfig, spTransforms, pcConfig]);
+    downloadCanvas(pcCanvas, `output_pc.${format}`, format);
+    downloadCanvas(spCanvas, `output_sp.${format}`, format);
+  }, [images, pcTransforms, spConfig, spTransforms, pcConfig, format]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
@@ -92,6 +94,7 @@ export function ExportDialog({
               <img src={spPreview} alt="SP版プレビュー" className="w-full rounded border" />
             )}
           </div>
+          <FormatSelector value={format} onChange={setFormat} />
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={handleDownloadPC}>
               PC版をダウンロード

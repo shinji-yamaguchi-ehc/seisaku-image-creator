@@ -1,6 +1,6 @@
 ﻿import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { computeGeom, normalizeLayoutConfig } from "@/lib/layout";
+import { normalizeLayoutConfig } from "@/lib/layout";
 import type { LayoutConfig } from "@/lib/types";
 
 interface ToolbarProps {
@@ -10,27 +10,27 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ config, onConfigChange, label }: ToolbarProps) {
-  const update = (partial: Partial<LayoutConfig>) => {
+  const update = (partial: Partial<Pick<LayoutConfig, "canvasWidth" | "canvasHeight">>) => {
     onConfigChange(normalizeLayoutConfig(config, partial));
   };
-  const total = computeGeom(config).H;
 
   return (
     <div className="bg-card border rounded-lg p-4 space-y-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-medium text-foreground">{label}</h3>
         <span className="text-xs tabular-nums text-muted-foreground">
-          キャンバス全体: {config.canvasWidth} × {total}px
+          キャンバス全体: {config.canvasWidth} × {config.canvasHeight}px
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        行の高さは1行目・2行目それぞれ独立に設定できます（キャンバスの高さは自動で決まります）。
-        プレビュー上でも、行間の境界線ドラッグで1行目の高さ・キャンバス下端のドラッグで2行目の高さ・左右のハンドルドラッグでキャンバス幅を変更できます。
+        デザインパターンの枠は、キャンバス全体を隙間なく埋める構成です。キャンバスの幅・高さを変更すると各枠は比率を保って追従します。
+        プレビュー上でも左右のハンドルで幅・下端のハンドルで高さを変更できます。
       </p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:max-w-sm">
         <div className="space-y-1.5">
           <Label className="text-xs">キャンバス幅 (px)</Label>
           <Input
+            data-testid="canvas-width-input"
             type="number"
             min={320}
             max={4096}
@@ -40,38 +40,14 @@ export function Toolbar({ config, onConfigChange, label }: ToolbarProps) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">1行目の高さ (px)</Label>
+          <Label className="text-xs">キャンバス高さ (px)</Label>
           <Input
-            data-testid="row1-height-input"
+            data-testid="canvas-height-input"
             type="number"
             min={40}
             max={4096}
-            value={config.row1Height}
-            onChange={(e) => update({ row1Height: Number(e.target.value) })}
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">2行目の高さ (px)</Label>
-          <Input
-            data-testid="row2-height-input"
-            type="number"
-            min={40}
-            max={4096}
-            value={config.row2Height}
-            onChange={(e) => update({ row2Height: Number(e.target.value) })}
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">行間の余白 (px)</Label>
-          <Input
-            data-testid="row-gap-input"
-            type="number"
-            min={0}
-            max={400}
-            value={config.rowGap}
-            onChange={(e) => update({ rowGap: Number(e.target.value) })}
+            value={config.canvasHeight}
+            onChange={(e) => update({ canvasHeight: Number(e.target.value) })}
             className="h-8 text-sm"
           />
         </div>

@@ -2,11 +2,7 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ShortcutList } from "@/components/ShortcutList";
-import {
-  computeGeom,
-  rectsFromGeom,
-  normalizeLayoutConfig,
-} from "@/lib/layout";
+import { frameRects, curveGuideD, normalizeLayoutConfig } from "@/lib/layout";
 import {
   ZOOM_MIN,
   ZOOM_STEP,
@@ -31,22 +27,17 @@ interface LayoutCanvasProps {
   onRemove: (index: number) => void;
 }
 
+type ResizeAxis = "w" | "e" | "s";
+
 type DragState =
   | { kind: "pan"; index: number; pointerId: number; baseRect: DOMRect; startX: number; startY: number; start: Transform }
   | {
-      kind: "rowHeight";
-      target: "row1" | "row2";
-      pointerId: number;
-      baseRect: DOMRect;
-      startY: number;
-      startCfg: LayoutConfig;
-    }
-  | {
-      kind: "width";
-      edge: "w" | "e";
+      kind: "resize";
+      axis: ResizeAxis;
       pointerId: number;
       baseRect: DOMRect;
       startX: number;
+      startY: number;
       startCfg: LayoutConfig;
     };
 
@@ -66,8 +57,10 @@ export function LayoutCanvas({
   onRemove,
 }: LayoutCanvasProps) {
   // プレビューはキャンバス（出力）と 1:1 サイズで表示するため、幾何はそのまま画面サイズになる
-  const geom = useMemo(() => computeGeom(config), [config]);
-  const rects = useMemo(() => rectsFromGeom(geom), [geom]);
+  const W = config.canvasWidth;
+  const H = config.canvasHeight;
+  const rects = useMemo(() => frameRects(config), [config]);
+  const curveD = useMemo(() => curveGuideD(config), [config]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -146,7 +139,7 @@ export function LayoutCanvas({
     [onUpload]
   );
 
-  // ---- ウィンドウ単位のドラッグ追従（pan / 行境界 / 左右エッジ共通） ----
+  // ---- ウィンドウ単位のドラッグ追従（pan / リサイズ共通） ----
   useEffect(() => {
     const move = (e: PointerEvent) => {
       const d = dragRef.current;
@@ -164,25 +157,16 @@ export function LayoutCanvas({
           d.index,
           panTransform(start, p.x - d.startX, p.y - d.startY, img.naturalWidth, img.naturalHeight)
         );
-      } else if (d.kind === "rowHeight") {
-        // ドラッグした側の行の高さのみを変更する（もう片方の行・行間余白は不変、キャンバス高さは自動導出）
-        // 必ず「ドラッグ開始時」の config を基準にする（中間イベントでの累積を防ぐ）
-        const base = d.startCfg;
-        const delta = Math.round(p.y - d.startY);
-        const partial =
-          d.target === "row1"
-            ? { row1Height: base.row1Height + delta }
-            : { row2Height: base.row2Height + delta };
-        const next = normalizeLayoutConfig(base, partial);
-        if (next.row1Height !== base.row1Height || next.row2Height !== base.row2Height) occ(next);
       } else {
-        // 左右エッジハンドル: キャンバス幅のみを変更（行の高さ・余白は不変）
+        // 左右エッジ=幅のみ / 下端=高さのみ を変更（枠は比率を保って追従）
         // 必ず「ドラッグ開始時」の config を基準にする（中間イベントでの累積を防ぐ）
         const base = d.startCfg;
-        // 外側へドラッグで拡大: 右端は +dx、左端は -dx
-        const delta = Math.round(p.x - d.startX) * (d.edge === "e" ? 1 : -1);
-        const next = normalizeLayoutConfig(base, { canvasWidth: base.canvasWidth + delta });
-        if (next.canvasWidth !== base.canvasWidth) occ(next);
+        const partial =
+          d.axis === "s"
+            ? { canvasHeight: base.canvasHeight + Math.round(p.y - d.startY) }
+            : { canvasWidth: base.canvasWidth + Math.round(p.x - d.startX) * (d.axis === "e" ? 1 : -1) };
+        const next = normalizeLayoutConfig(base, partial);
+        if (next.canvasWidth !== base.canvasWidth || next.canvasHeight !== base.canvasHeight) occ(next);
       }
     };
     const up = (e: PointerEvent) => {
@@ -229,8 +213,8 @@ export function LayoutCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    renderPreview(canvas, images, transforms, config, geom.W);
-  }, [images, transforms, config, geom.W]);
+    renderPreview(canvas, images, transforms, config, W);
+  }, [images, transforms, config, W]);
 
   // ---- スロット操作 ----
   const zoomByStep = useCallback(
@@ -285,34 +269,18 @@ export function LayoutCanvas({
     [images, eff, toLocalOf]
   );
 
-  const startRowHeightDrag = useCallback(
-    (e: React.PointerEvent, target: "row1" | "row2") => {
+  const startResizeDrag = useCallback(
+    (e: React.PointerEvent, axis: ResizeAxis) => {
       if (e.button !== 0) return;
       e.preventDefault();
       const p = toLocal(e);
       dragRef.current = {
-        kind: "rowHeight",
-        target,
-        pointerId: e.pointerId,
-        baseRect: wrapperRef.current!.getBoundingClientRect(),
-        startY: p.y,
-        startCfg: { ...config },
-      };
-    },
-    [toLocal, config]
-  );
-
-  const startWidthDrag = useCallback(
-    (e: React.PointerEvent, edge: "w" | "e") => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      const p = toLocal(e);
-      dragRef.current = {
-        kind: "width",
-        edge,
+        kind: "resize",
+        axis,
         pointerId: e.pointerId,
         baseRect: wrapperRef.current!.getBoundingClientRect(),
         startX: p.x,
+        startY: p.y,
         startCfg: { ...config },
       };
     },
@@ -396,7 +364,7 @@ export function LayoutCanvas({
         <div
           ref={wrapperRef}
           className="relative select-none rounded-lg bg-white"
-          style={{ width: geom.W, height: geom.H, touchAction: "none" }}
+          style={{ width: W, height: H, touchAction: "none" }}
           onPointerDownCapture={(e) => {
             // パネル等以外の場所をクリックしたらヘルプパネルを閉じる
             if (!(e.target as HTMLElement).closest("[data-controls]")) setHelpIndex(null);
@@ -408,28 +376,29 @@ export function LayoutCanvas({
             className="absolute left-0 top-0 block rounded-lg"
           />
 
-          {/* グリッドガイド */}
+          {/* 枠ガイド（各枠の輪郭を薄く表示。曲線パターンは曲線境界を表示） */}
           <svg
             className="pointer-events-none absolute inset-0 z-10"
-            width={geom.W}
-            height={geom.H}
+            width={W}
+            height={H}
             aria-hidden="true"
           >
-            <line x1={0} y1={geom.r1} x2={geom.W} y2={geom.r1} stroke="rgba(0,0,0,0.18)" strokeWidth={1} />
-            {geom.gap > 0.5 && (
-              <line
-                x1={0}
-                y1={geom.r1 + geom.gap}
-                x2={geom.W}
-                y2={geom.r1 + geom.gap}
-                stroke="rgba(0,0,0,0.18)"
-                strokeWidth={1}
-              />
+            {curveD ? (
+              <path d={curveD} fill="none" stroke="rgba(0,0,0,0.14)" strokeWidth={1} />
+            ) : (
+              rects.map((r, i) => (
+                <rect
+                  key={i}
+                  x={r.x + 0.5}
+                  y={r.y + 0.5}
+                  width={Math.max(0, r.width - 1)}
+                  height={Math.max(0, r.height - 1)}
+                  fill="none"
+                  stroke="rgba(0,0,0,0.12)"
+                  strokeWidth={1}
+                />
+              ))
             )}
-            <line x1={geom.col} y1={geom.r1} x2={geom.col} y2={geom.H} stroke="rgba(255,255,255,0.5)" strokeWidth={1} />
-            <line x1={geom.col} y1={geom.r1} x2={geom.col} y2={geom.H} stroke="rgba(0,0,0,0.12)" strokeWidth={1} />
-            <line x1={geom.col * 2} y1={geom.r1} x2={geom.col * 2} y2={geom.H} stroke="rgba(255,255,255,0.5)" strokeWidth={1} />
-            <line x1={geom.col * 2} y1={geom.r1} x2={geom.col * 2} y2={geom.H} stroke="rgba(0,0,0,0.12)" strokeWidth={1} />
           </svg>
 
           {/* スロットレイヤー（パン操作・キーボード・コントロール） */}
@@ -622,32 +591,6 @@ export function LayoutCanvas({
             );
           })}
 
-          {/* 1行目の下端（ドラッグで1行目の高さのみを変更） */}
-          <div
-            data-testid="row-divider"
-            role="separator"
-            aria-label="1行目の下端（ドラッグで1行目の高さを変更）"
-            title="ドラッグで1行目の高さを変更（2行目は変わらないまま）"
-            onPointerDown={(e) => startRowHeightDrag(e, "row1")}
-            className="group absolute left-0 z-30 flex w-full cursor-row-resize items-center"
-            style={{ top: geom.r1 - 8, height: 16, touchAction: "none" }}
-          >
-            <div className="mx-auto h-[3px] w-full rounded-full bg-primary/25 transition-colors group-hover:bg-primary/70" />
-          </div>
-
-          {/* 2行目の下端＝キャンバス下端（ドラッグで2行目の高さのみを変更） */}
-          <div
-            data-testid="row2-divider"
-            role="separator"
-            aria-label="2行目の下端（ドラッグで2行目の高さを変更）"
-            title="ドラッグで2行目の高さを変更（1行目は変わらないまま）"
-            onPointerDown={(e) => startRowHeightDrag(e, "row2")}
-            className="group absolute left-0 z-30 flex w-full cursor-row-resize items-center"
-            style={{ top: geom.H - 8, height: 16, touchAction: "none" }}
-          >
-            <div className="h-[3px] w-full rounded-full bg-primary/25 transition-colors group-hover:bg-primary/70" />
-          </div>
-
           {/* 左右エッジハンドル（ドラッグでキャンバス幅のみを変更） */}
           {EDGES.map(({ edge, style, label }) => (
             <div
@@ -656,7 +599,7 @@ export function LayoutCanvas({
               role="separator"
               aria-label={`キャンバス幅を変更（${label}）`}
               title="左右にドラッグでキャンバス幅のみを変更"
-              onPointerDown={(e) => startWidthDrag(e, edge)}
+              onPointerDown={(e) => startResizeDrag(e, edge)}
               className="group absolute z-30 w-3.5 cursor-ew-resize"
               style={{ ...style, touchAction: "none" }}
             >
@@ -664,11 +607,24 @@ export function LayoutCanvas({
             </div>
           ))}
 
+          {/* 下端ハンドル（ドラッグでキャンバス高さのみを変更） */}
+          <div
+            data-testid="edge-handle-s"
+            role="separator"
+            aria-label="キャンバス高さを変更"
+            title="上下にドラッグでキャンバス高さのみを変更"
+            onPointerDown={(e) => startResizeDrag(e, "s")}
+            className="group absolute bottom-0 left-0 right-0 z-30 flex h-2 cursor-row-resize items-center"
+            style={{ touchAction: "none" }}
+          >
+            <div className="h-[3px] w-full rounded-full bg-primary/25 transition-colors group-hover:bg-primary/70" />
+          </div>
+
           {/* スロット直接アップロード用の共有ファイル入力 */}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             className="hidden"
             data-testid="slot-file-input"
             onChange={handleFileInputChange}
@@ -677,7 +633,7 @@ export function LayoutCanvas({
       </div>
       <p className="mt-2 text-center text-[11px] text-muted-foreground">
         空きスロットはクリック／ドロップで画像を追加。スロット内：ドラッグ＝位置調整／ホイール＝ズーム／ダブルクリック＝フィット⇔100%。
-        行間の線で1行目、下端の線で2行目の高さを独立に変更。左右のハンドルでキャンバス幅を変更。
+        左右のハンドルでキャンバス幅・下端のハンドルで高さを変更（各枠は比率を保って追従）。
       </p>
     </div>
   );
