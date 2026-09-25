@@ -109,7 +109,7 @@ npm run test:e2e:gradient  # グラデーションページのみ実行
 - **main ブランチ**: 常にデプロイ可能な状態を維持（直接コミット・マージ不可）
 - **機能追加時**: `feature/xxx` ブランチを切って実装し、PR で main へマージ
 - **バグ修正時**: `fix/xxx` ブランチを切って修正し、PR で main へマージ
-- main・develop への push 時に GitHub Actions が自動で GitHub Pages へデプロイ（公開内容はブランチごとに独立。詳細は「GitHub Pages デプロイ」参照）
+- main への push 時に GitHub Actions が自動で GitHub Pages へデプロイ（詳細は「GitHub Pages デプロイ」参照）
 
 ### ブランチ命名規則
 
@@ -127,25 +127,17 @@ npm run test:e2e:gradient  # グラデーションページのみ実行
 
 ## GitHub Pages デプロイ
 
-GitHub Actions で自動ビルドし、**gh-pages ブランチ**経由で公開します（ブランチごとに独立）。
+`main` への push をトリガーに、GitHub Actions がビルド成果物の `dist/` を GitHub Pages へ公開します。`main` 以外のブランチでは Pages デプロイを実行しません。
 
-| ブランチ | ワークフロー | 公開先 URL | 更新範囲 |
-|---|---|---|---|
-| `main` | `.github/workflows/deploy-pages-main.yaml` | `https://<user>.github.io/<repo>/` | ルート全体（`dev/` を除く） |
-| `develop` | `.github/workflows/deploy-pages-develop.yaml` | `https://<user>.github.io/<repo>/dev/` | `dev/` のみ |
+- ワークフロー: `.github/workflows/deploy-pages.yaml`
+- 公開先: `https://<user>.github.io/<repo>/`
 
-- 各ワークフローは自分の担当ディレクトリのみを更新するため、**develop への push が main の公開内容に影響しない**（逆も同様）
-- 同時 push 時は `concurrency`（グループ `pages-publish`・キャンセルなし）により直列実行され、競合しない
-- アセットパスは CI で `vite build --base=/seisaku-image-creator/`（develop は `/seisaku-image-creator/dev/`）を指定して解決
 - ルーティングは `HashRouter` を使用（GitHub Pages には SPA フォールバックがないため）
-- ブラウザ内ナビゲーション: `https://<user>.github.io/<repo>/#/gradient`（develop では `https://<user>.github.io/<repo>/dev/#/gradient`）
+- ブラウザ内ナビゲーション: `https://<user>.github.io/<repo>/#/gradient`
 
 ### 初回セットアップ（一度だけ）
 
-1. Settings → Pages → Build and deployment の Source を **Deploy from a branch** に変更
-2. Branch: **gh-pages** / Folder: **/ (root)** を選択して Save
-
-gh-pages ブランチはワークフロー初回実行時に自動生成されます（手動実行する場合は Actions の「Deploy Pages (main)」から workflow_dispatch を実行してください）。
+Settings → Pages → Build and deployment の Source で **GitHub Actions** を選択します。
 
 ---
 
